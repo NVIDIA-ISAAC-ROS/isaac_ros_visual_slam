@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<!--
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+-->
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>isaac_ros_visual_odometry_interfaces</name>
+  <version>0.9.0</version>
+  <description>Interfaces for Isaac ROS Visual Odometry</description>
+  <maintainer email="swani@nvidia.com">Swapnesh Wani</maintainer>
+  <license>JetPack EULA</license>
+  <url type="website">https://developer.nvidia.com/blog/accelerating-ai-modules-for-ros-and-ros-2-on-jetson/</url>
+  <author>Swapnesh Wani</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
