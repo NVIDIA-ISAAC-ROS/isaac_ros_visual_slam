@@ -55,9 +55,10 @@ Run the following script in `isaac_ros_common` to build the image and launch the
 You can either provide an optional path to mirror in your host ROS workspace with Isaac ROS packages, which will be made available in the container as `/workspaces/isaac_ros-dev`, or you can setup a new workspace in the container.
 
 ### Package Dependencies
-- [isaac_ros_common](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/tree/main/isaac_ros_common)
+- [isaac_ros_common](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common)
+- [isaac_ros_image_pipeline](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_image_pipeline)
 
-**Note:** `isaac_ros_common` is used for running tests and/or creating a development container.
+**Note:** `isaac_ros_common` is used for running tests and/or creating a development container and `isaac_ros_image_pipeline` is used as an executable dependency in launch files.
 
 ## Rectified vs Smooth Transform
 Elbrus provides the user with two possible modes: visual odometry with SLAM (rectified transform) or pure visual odometry (smooth transform).
@@ -75,7 +76,7 @@ This section describes the coordinate frames that are involved in the `VisualOdo
 1. `left_camera_frame`: The frame associated with left eye of the stereo camera. Note that this is not the same as optical frame.
 2. `right_camera_frame`: The frame associated with right eye of the stereo camera. Note that this is not the same as optical frame.
 3. `imu_frame`: The frame associated with the IMU sensor (if available).
-4. `fixed_frame`: The fixed frame that aligns with the start pose of the stereo camera. The tracked poses are published in the [tf](http://wiki.ros.org/tf) tree with respect to this frame.
+4. `fixed_frame`: The fixed frame that aligns with the start pose of the stereo camera. The tracked poses are published in the [TF](http://wiki.ros.org/tf) tree with respect to this frame.
 5. `current_smooth_frame`: The moving frame that tracks the current smooth pose of the stereo camera. The poses in this frame represent a smooth continous motion. Note that the frame can drift over time.
 6. `current_rectified_frame`: The moving frame that tracks the current rectified pose of the stereo camera. The poses in this frame represent an accurate position and orientation. Note that the frame can have sudden jumps.
 
@@ -98,34 +99,64 @@ This repository comes with pre-configured launch files for a real camera and a s
 5. Start `isaac_ros_visual_odometry` using the launch files:<br>
     `ros2 launch isaac_ros_visual_odometry isaac_ros_visual_odometry_realsense.launch.py`
 
-6. To connect the RealSense camera default tf tree to the `current_smooth_frame`(default value is *base_link_smooth*), run the following command: <br> `ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 1 base_link_smooth camera_link`
+6. To connect the RealSense camera's default TF tree to the `current_smooth_frame`(default value is *base_link_smooth*), run the following command: <br> `ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 1 base_link_smooth camera_link`
 7. In a separate terminal, spin up RViz to see the tracking of the camera:<br>
     `rviz2`
-8. Add the tf tree in the **Displays** panel of the RViz. <br><div align="center"><img src="resources/Rviz_add_tf.png" width="600px"/></div>
-9.  Set the **Fixed frame** in the **Global Options** to the name provided in the `fixed_frame` variable. <br> <div align="center"><img src="resources/Rviz_set_fixed_frame.png" width="600px"/></div>
+8. Add the TF tree in the **Displays** panel of the RViz. <br><div align="center"><img src="resources/Rviz_add_tf.png" width="600px"/></div>
+9.  Set the **Fixed frame** in the **Global Options** to the name provided in the `fixed_frame` variable. <br> <div align="center"><img src="resources/Rviz_set_fixed_frame.png" width="300px"/></div>
 10.  Try moving your camera, and you should see something like this: <br> <div align="center"><img src="resources/Rviz.png" width="600px"/></div>
 11.  If you prefer to observe the Visual Odometry output in a text mode, on a separate terminal echo the contents of the `/visual_odometry/tf_stamped` topic with the following command:   
 `ros2 topic echo /visual_odometry/tf_stamped` <br> <div align="center"><img src="resources/Terminal_output.png" width="600px"/></div>
 
-### For Isaac SIM
+### For Isaac Sim
 
-5. Before launching the `isaac_ros_visual_odometry` node, set up a Isaac Sim ROS2 bridge as described [here](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_ros_bridge.html#ros2-bridge).
-6. After that, follow this [link](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/sample_ros_stereo.html) to open up the ROS Stereo example.
-7. **Note**: The default stereo offset for the right camera from Isaac Sim is zero. Change the x value to `-175.92` and keep the y value to `0.0`.<br> 
-<div align="center"><img src="resources/Isaac_SIM.png" width="800px"/></div>
+5. Make sure you have Isaac Sim [set up](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim.html#setting-up-isaac-sim) correctly and choose the appropriate working environment[[Native](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/setup.html)/[Docker&Cloud](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/setup.html#docker-cloud-deployment)]. For this walkthrough, we are using the native workstation setup for Isaac Sim.
+6. See [Running For The First Time](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/first_run.html#) section to launch Isaac Sim from the [app launcher](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/user_interface_launcher.html) and click on the **Isaac Sim** button.
+7. Set up the Isaac Sim ROS2 bridge as described [here](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_ros_bridge.html#ros2-bridge).
+8. Connect to the Nucleus server as shown in the [Getting Started](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/sample_jetbot.html#getting-started) section if you have not done it already.
+9. Open up the Isaac ROS Common USD scene located at:
+   
+   `omniverse://<your_nucleus_server>/Isaac/Samples/ROS/Scenario/carter_warehouse_apriltags_worker.usd`.
+   
+   And wait for it to load completly.
 
-8. Press **Play** to start publishing the data from Isaac SIM.
-9. In a seprate terminal, start `isaac_ros_visual_odometry` using the launch files:<br>
+10. Enable the right camera for a stereo image pair. Go to the stage tab and select `/World/Carter_ROS/ROS_Camera_Stereo_Right` then tick the `enabled` checkbox.
+    
+    <div align="center"><img src="resources/Isaac_sim_enable_stereo.png" width="500px"/></div>
+11. Press **Play** to start publishing data from the Isaac Sim application.
+    
+    <div align="center"><img src="resources/Isaac_sim_visual_odometry.png" width="800px"/></div>
+12. In a separate terminal, start `isaac_ros_visual_odometry` using the launch files:<br>
     `ros2 launch isaac_ros_visual_odometry isaac_ros_visual_odometry_isaac_sim.launch.py`
-10. In a separate terminal, send the signal to rotate the robot in the sim as follows: <br>
+13. In a separate terminal, send the signal to rotate the robot in the sim as follows: <br>
 `ros2 topic pub /cmd_vel geometry_msgs/Twist '{linear:  {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0,y: 0.0,z: 0.05}}'`
-11. In a separate terminal, spin up the RViz to see the tracking of the robot:<br>
+14. In a separate terminal, run RViz to visualize the tracking of the pose of the camera:<br>
     `rviz2`
-12.  Add the tf tree in the **Displays** RViz panel. <br> <div align="center"><img src="resources/Rviz_add_tf.png" width="600px"/></div>
-13.  Set the **Fixed frame** in the **Global Options** to the name provided in the `fixed_frame` variable. <br> <div align="center"><img src="resources/Rviz_set_fixed_frame.png" width="600px"/></div>
-14.  You should see something like this: <br> <div align="center"><img src="resources/Isaac_SIM_Rviz.png" width="600px"/></div>
-15.  If you prefer to observe the Visual Odometry output in a text mode, on a separate terminal, echo the contents of the `/visual_odometry/tf_stamped` topic with the following command:   
+15.  Add the TF tree in the **Displays** RViz panel. <br> <div align="center"><img src="resources/Rviz_add_tf.png" width="600px"/></div>
+16.  Set the **Fixed frame** in the **Global Options** to the name provided in the `fixed_frame` variable. <br> <div align="center"><img src="resources/Rviz_set_fixed_frame.png" width="300px"/></div>
+17.  You should see something like this: <br> <div align="center"><img src="resources/Rviz_isaac_sim.png" width="600px"/></div>
+18.  If you prefer to observe the Visual Odometry output in a text mode, on a separate terminal, echo the contents of the `/visual_odometry/tf_stamped` topic with the following command:   
 `ros2 topic echo /visual_odometry/tf_stamped` <br> <div align="center"><img src="resources/Terminal_output.png" width="600px"/></div>
+
+### For Isaac Sim with Hardware in the loop (HIL)
+
+The following instructions are for a setup where we can run the sample on a Jetson device and Isaac Sim on an x86 machine. We will use the ROS_DOMAIN_ID environment variable to have a separate logical network for Isaac Sim and the sample application. 
+
+NOTE: Before executing any of the ROS commands, make sure to set the ROS_DOMAIN_ID variable first.
+
+1. Complete step 5 of [For Isaac Sim](#for-isaac-sim) section if you have not done it already.
+2. Open the location of the Isaac Sim package in the terminal by clicking the [**Open in Terminal**](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/user_interface_launcher.html) button.
+   
+   <div align="center"><img src="resources/Isaac_sim_app_launcher.png" width="400px"/></div>
+3. In the terminal opened by the previous step, set the ROS_DOMAIN_ID as shown:
+
+   `export ROS_DOMAIN_ID=<some_number>`
+
+4. Launch Isaac Sim from the script as shown:
+   
+   `./isaac-sim.sh` 
+   <div align="center"><img src="resources/Isaac_sim_app_terminal.png" width="600px"/></div>
+5. Continue with step 7 of [For Isaac Sim](#for-isaac-sim) section. Make sure to set the ROS_DOMAIN_ID variable before running the sample application.
 
 # Package Reference
 
@@ -135,6 +166,16 @@ This repository comes with pre-configured launch files for a real camera and a s
 | Component            | Topics Subscribed                                                                                                                                                                                                                                                                                                                                                                                                                              | Topics Published                                                                                                                                                                                                                                                                                                          | Parameters                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `VisualOdometryNode` | `/stereo_camera/left/image`: The image from the left eye of the stereo camera in grayscale <br> `/stereo_camera/left/camera_info`: CameraInfo from the left eye of the stereo camera <br> `/stereo_camera/right/image`: The image from the right eye of the stereo camera in grayscale <br> `/stereo_camera/right/camera_info`: CameraInfo from the right eye of the stereo camera <br> `visual_odometry/imu`: Sensor data from IMU(optional). | `/visual_odometry/tf_stamped`: A consolidated message that provies information about the tracked poses. It consists of two poses: `smooth_transform` is calculated from pure visual odometry; `rectified_transform` is calculated with SLAM enabled. It also gives the states of both poses. <br> See more details below. | `enable_rectified_pose`: If enabled, `rectified_transform` will be populated in the message. It is enabled by default.<br> `denoise_input_images`: If enabled, input images are denoised. It can be enabled when images are noisy because of low-light conditions. It is disabled by default. <br> `rectified_images`: Flag to mark if the images coming in the subscribed topics are rectified or raw. It is enabled by default. <br> `enable_imu`: If enabled, IMU data is used. It is disabled by default. <br> `enable_debug_mode`: If enabled, a debug dump(image frames, timestamps, and camera info) is saved on to the disk at the path indicated by `debug_dump_path`. It is disabled by default <br> `debug_dump_path`: The path to the directory to store the debug dump data. The default value is `/tmp/elbrus`. <br> `gravitational_force`: The initial gravity vector defined in the odom frame. If the IMU sensor is not parallel to the floor, update all the axes with appropriate values. The default value is `{0.0, 0, -9.8}`. <br> `left_camera_frame`: The name of the left camera frame. The default value is `left_cam`. <br> `right_camera_frame`: The name of the right camera frame. The default value is `right_cam`. <br> `imu_frame`: The name of the imu frame. The default value is `imu`. <br> `fixed_frame`: The name of the frame where odomerty or poses are tracked. This is a fixed frame. The default value is `odom`. <br> `current_smooth_frame`: The name of the frame where `smooth_transform` is published. This is a moving frame. The default value is *base_link_smooth*. <br> `current_rectified_frame`: The name of the frame where `rectified_transform` is published. This is a moving frame. The default value is `base_link_rectified`. |
+
+### Launch files
+
+| Name                                          | Description                                                                |
+| --------------------------------------------- | -------------------------------------------------------------------------- |
+| isaac_ros_visual_odometry.launch.py           | Launch file to bring up visual odometry node standalone.                   |
+| isaac_ros_visual_odometry_isaac_sim.launch.py | Launch file which brings up visual odometry node configured for Isaac Sim. |
+| isaac_ros_visual_odometry_realsense.launch.py | Launch file which brings up visual odometry node configured for RealSense. |
+| isaac_ros_visual_odometry_zed2.launch.py      | Launch file which brings up visual odometry node remapped for Zed2.        |
+
 
 ### `visual_odometry/tf_stamped`
 <pre><code>
@@ -181,6 +222,7 @@ uint8 integrator_state
 
 # Updates
 
-| Date | Changes |
-| -----| ------- |
-| 2021-10-20 | Initial release  |
+| Date       | Changes                            |
+| ---------- | ---------------------------------- |
+| 2021-11-15 | Isaac Sim HIL documentation update |
+| 2021-10-20 | Initial release                    |
