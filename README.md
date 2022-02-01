@@ -27,7 +27,7 @@ This Isaac ROS package is designed and tested to be compatible with ROS2 Foxy on
 
 ### x86_64
 - CUDA 10.2+ supported discrete GPU
-- Ubuntu 18.04+
+- Ubuntu 20.04+
 
 **Note:** For best performance on Jetson, ensure that power settings are configured appropriately ([Power Management for Jetson](https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/power_management_jetson_xavier.html#wwpID0EUHA)).
 
