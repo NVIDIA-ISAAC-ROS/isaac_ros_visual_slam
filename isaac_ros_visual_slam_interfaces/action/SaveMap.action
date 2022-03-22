@@ -1,0 +1,11 @@
+# Save map to the disk
+
+# Localhost file path to save the map 
+string map_url
+---
+# Result
+bool success
+string error
+---
+# Feedback
+int32 progress

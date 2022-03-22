@@ -1,0 +1,20 @@
+# Load map from the file on the disk and try to localize on it.
+
+# Localhost file path of the map 
+string map_url
+
+# Initial guess(translation only) of where the robot is in the saved map.
+geometry_msgs/Vector3 localize_near_point
+
+---
+
+# Indicates if localization is successful
+bool success
+
+# Pose of the localized robot in the map
+geometry_msgs/Pose pose
+
+---
+# Feedback
+int32 progress
+

@@ -1,0 +1,7 @@
+# This service set up odometry pose.
+# Request
+geometry_msgs/Pose pose
+---
+# Response
+# Indicate successful run of the service
+bool success

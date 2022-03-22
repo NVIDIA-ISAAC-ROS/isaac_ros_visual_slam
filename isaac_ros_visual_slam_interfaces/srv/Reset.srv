@@ -1,0 +1,6 @@
+# This service restart and reset the node.
+# Request
+---
+# Response
+# Indicate successful run of the service
+bool success
