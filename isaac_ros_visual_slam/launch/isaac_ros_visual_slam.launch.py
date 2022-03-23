@@ -16,7 +16,7 @@ def generate_launch_description():
     visual_slam_node = ComposableNode(
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
-        plugin='isaac_ros::visual_slam::VisualSlamNode',        
+        plugin='isaac_ros::visual_slam::VisualSlamNode',
         parameters=[{
                     'enable_rectified_pose': True,
                     'denoise_input_images': False,
