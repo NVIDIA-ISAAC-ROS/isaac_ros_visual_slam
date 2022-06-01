@@ -2,7 +2,7 @@
 
 <div align="center"><img src="resources/elbrus_ros_3.gif" width="400px"/></div>
 
-This repository provides a ROS2 package that performs stereo visual simultaneous localization and mapping (VSLAM) and estimates stereo visual inertial odometry using the [Isaac Elbrus](https://docs.nvidia.com/isaac/isaac/packages/visual_slam/doc/elbrus_visual_slam.html) GPU-accelerated library. It takes in a time-synced pair of stereo images (grayscale) along with respective camera intrinsics to publish the current pose of the camera relative to its start pose. 
+This repository provides a ROS2 package that performs stereo visual simultaneous localization and mapping (VSLAM) and estimates stereo visual inertial odometry using the [Isaac Elbrus](https://docs.nvidia.com/isaac/packages/visual_slam/doc/elbrus_visual_slam.html) GPU-accelerated library. It takes in a time-synced pair of stereo images (grayscale) along with respective camera intrinsics to publish the current pose of the camera relative to its start pose. 
 
 Elbrus is based on two core technologies: Visual Odometry (VO) and Simultaneous Localization and Mapping (SLAM).
 
