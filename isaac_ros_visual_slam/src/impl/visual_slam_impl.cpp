@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -16,7 +16,7 @@
 #include "eigen3/Eigen/Dense"
 #include "isaac_ros_visual_slam/impl/elbrus_ros_convertion.hpp"
 #include "isaac_ros_visual_slam/impl/visual_slam_impl.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace
 {
@@ -110,7 +110,7 @@ void VisualSlamNode::VisualSlamImpl::Init(
   const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_right_ci)
 {
   if (elbrus_handle == nullptr) {
-    rclcpp::Time stamp = node_clock->now();
+    const rclcpp::Time & stamp = msg_left_ci->header.stamp;
 
     std::string in_baselink = node.input_base_frame_;
     if (in_baselink.empty()) {

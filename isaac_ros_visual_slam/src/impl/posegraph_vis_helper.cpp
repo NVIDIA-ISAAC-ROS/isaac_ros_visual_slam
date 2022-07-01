@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -16,7 +16,7 @@
 #include "isaac_ros_visual_slam/impl/elbrus_ros_convertion.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace isaac_ros
 {
@@ -24,7 +24,6 @@ namespace visual_slam
 {
 
 // PoseGraphVisHelper
-//
 PoseGraphVisHelper::PoseGraphVisHelper(
   ELBRUS_DataLayer layer,
   uint32_t max_items_count,

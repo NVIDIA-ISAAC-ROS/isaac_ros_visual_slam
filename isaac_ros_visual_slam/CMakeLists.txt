@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -43,7 +43,7 @@ add_library(elbrus SHARED IMPORTED)
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
   set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/elbrus/lib_x86_64/libelbrus.so)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/elbrus/lib_aarch64_xavier/libelbrus.so)
+  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/elbrus/lib_aarch64_jetpack50/libelbrus.so)
 endif()
 
 # visual_slam_node
@@ -81,7 +81,7 @@ install(TARGETS ${PROJECT_NAME}
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
   install(DIRECTORY elbrus/lib_x86_64/ DESTINATION share/elbrus)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  install(DIRECTORY elbrus/lib_aarch64_xavier/ DESTINATION share/elbrus)
+  install(DIRECTORY elbrus/lib_aarch64_jetpack50/ DESTINATION share/elbrus)
 endif()
 set_target_properties(visual_slam_node PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
 set_target_properties(visual_slam_node PROPERTIES INSTALL_RPATH "$ORIGIN/../share/elbrus")
