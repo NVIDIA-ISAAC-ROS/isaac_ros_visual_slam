@@ -1,5 +1,2 @@
 # Ignore all pycache files
 **/__pycache__/**
-.vs
-.vscode
-

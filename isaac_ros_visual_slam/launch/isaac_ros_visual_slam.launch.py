@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -17,15 +17,20 @@ def generate_launch_description():
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
         plugin='isaac_ros::visual_slam::VisualSlamNode',
+        remappings=[('/stereo_camera/left/camera_info', '/camera_info_left'),
+                    ('/stereo_camera/right/camera_info', '/camera_info_right')],
         parameters=[{
-                    'enable_rectified_pose': True,
-                    'denoise_input_images': False,
+                    'use_sim_time': False,
+                    'denoise_input_images': True,
                     'rectified_images': True,
+                    'enable_slam_visualization': True,
+                    'enable_observations_view': True,
+                    'enable_landmarks_view': True,
                     'enable_debug_mode': False,
-                    'enable_imu': False,
                     'debug_dump_path': '/tmp/elbrus',
-                    'input_imu_frame': 'imu',
-                    'path_max_size': 4000,
+                    'map_frame': 'map',
+                    'odom_frame': 'odom',
+                    'base_frame': 'base_link'
                     }]
     )
 

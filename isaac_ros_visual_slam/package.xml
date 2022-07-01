@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <!--
-Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
 
 NVIDIA CORPORATION and its licensors retain all intellectual property
 and proprietary rights in and to this software, related documentation
@@ -13,7 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>isaac_ros_visual_slam</name>
-  <version>0.9.0</version>
+  <version>0.10.0</version>
   <description>Visual SLAM Package</description>
   <maintainer email="swani@nvidia.com">Swapnesh Wani</maintainer>
   <license>NVIDIA Isaac ROS Software License</license>

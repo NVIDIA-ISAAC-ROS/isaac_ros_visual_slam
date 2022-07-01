@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -97,7 +97,7 @@ private:
   // It is used to calculate the left_pose_right camera extrinsics.
   // Default is empty, which means left and right cameras has identity rotation and
   // horizontally aligned, so left_pose_right will be calculated from CameraInfo
-  // See camera matrix info for more details : https://docs.ros2.org/foxy/api/sensor_msgs/msg/CameraInfo.html
+  // See camera matrix info for more details : https://docs.ros2.org/humble/api/sensor_msgs/msg/CameraInfo.html
   const std::string input_right_camera_frame_;
 
   // Defines the name of the IMU camera frame used to calculate left_camera_pose_imu

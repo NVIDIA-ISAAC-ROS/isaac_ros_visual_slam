@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -94,8 +94,6 @@ void LandmarksVisHelper::Run()
 
     pc_msg->is_bigendian = false;
     pc_msg->is_dense = false;
-
-    // RCLCPP_INFO(node_->get_logger(), "%d: ReadingLandmarks() = %d\n", layer_, landmarks.num);
 
     sensor_msgs::PointCloud2Modifier modifier(*pc_msg.get());
     modifier.setPointCloud2Fields(

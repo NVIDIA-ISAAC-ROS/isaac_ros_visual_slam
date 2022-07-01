@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -15,7 +15,7 @@ def generate_launch_description():
     """Launch file which brings up visual slam node configured for RealSense."""
     realsense_camera_node = Node(
         package='realsense2_camera',
-        node_executable='realsense2_camera_node',
+        executable='realsense2_camera_node',
         parameters=[{
                 'infra_height': 360,
                 'infra_width': 640,

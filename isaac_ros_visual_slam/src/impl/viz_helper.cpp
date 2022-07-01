@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -18,7 +18,6 @@ namespace visual_slam
 {
 
 // VisHelper
-
 VisHelper::VisHelper() {}
 void VisHelper::Init(
   ELBRUS_TrackerHandle elbrus_handle,
