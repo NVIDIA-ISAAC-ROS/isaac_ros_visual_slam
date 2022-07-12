@@ -34,8 +34,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
   <depend>visualization_msgs</depend>
   <depend>isaac_ros_visual_slam_interfaces</depend>
 
-  <exec_depend>isaac_ros_image_proc</exec_depend>
-
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
   <test_depend>isaac_ros_test</test_depend>

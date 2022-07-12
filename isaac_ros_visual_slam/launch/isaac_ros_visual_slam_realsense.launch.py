@@ -14,6 +14,8 @@ from launch_ros.descriptions import ComposableNode
 def generate_launch_description():
     """Launch file which brings up visual slam node configured for RealSense."""
     realsense_camera_node = Node(
+        name='camera',
+        namespace='camera',
         package='realsense2_camera',
         executable='realsense2_camera_node',
         parameters=[{
@@ -45,10 +47,10 @@ def generate_launch_description():
                     'input_left_camera_frame': 'camera_infra1_frame',
                     'input_right_camera_frame': 'camera_infra2_frame'
                     }],
-        remappings=[('stereo_camera/left/image', 'infra1/image_rect_raw'),
-                    ('stereo_camera/left/camera_info', 'infra1/camera_info'),
-                    ('stereo_camera/right/image', 'infra2/image_rect_raw'),
-                    ('stereo_camera/right/camera_info', 'infra2/camera_info')]
+        remappings=[('stereo_camera/left/image', 'camera/infra1/image_rect_raw'),
+                    ('stereo_camera/left/camera_info', 'camera/infra1/camera_info'),
+                    ('stereo_camera/right/image', 'camera/infra2/image_rect_raw'),
+                    ('stereo_camera/right/camera_info', 'camera/infra2/camera_info')]
     )
 
     visual_slam_launch_container = ComposableNodeContainer(

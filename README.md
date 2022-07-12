@@ -87,10 +87,6 @@ This section describes the coordinate frames that are involved in the `VisualSla
       ```bash
     git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common
     ``` 
-
-    ```bash
-    git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_image_pipeline
-    ```
     
 3. Pull down a ROS Bag of sample data:
 
