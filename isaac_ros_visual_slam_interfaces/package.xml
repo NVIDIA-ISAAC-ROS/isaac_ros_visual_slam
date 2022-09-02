@@ -13,7 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>isaac_ros_visual_slam_interfaces</name>
-  <version>0.10.0</version>
+  <version>0.11.0</version>
   <description>Interfaces for Isaac ROS Visual SLAM</description>
   <maintainer email="swani@nvidia.com">Swapnesh Wani</maintainer>
   <license>NVIDIA Isaac ROS Software License</license>
