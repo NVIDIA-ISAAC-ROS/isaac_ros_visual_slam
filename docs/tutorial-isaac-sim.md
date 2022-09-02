@@ -1,5 +1,5 @@
 # Tutorial with Isaac Sim
-> **Note: Isaac Sim 2022.1.0 published on 6/3/2022 does not support ROS2 Humble. Please follow one of the [workarounds](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/blob/main/docs/isaac-sim-sil-setup.md#isaac-sim-202210-workarounds) before continuing with the tutorial**
+
 1. Complete the [Quickstart section](../README.md#quickstart) in the main README.
 2. Launch the Docker container using the `run_dev.sh` script:
     ```bash

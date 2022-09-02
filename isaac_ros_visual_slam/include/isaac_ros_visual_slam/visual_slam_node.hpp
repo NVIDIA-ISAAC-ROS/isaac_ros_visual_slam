@@ -108,7 +108,13 @@ private:
   const std::vector<double> gravitational_force_;
 
   // Publish output frames hierarchy. Default is true.
-  bool publish_tf_;
+  bool publish_odom_to_base_tf_;
+  bool publish_map_to_odom_tf_;
+
+  // Invert the odom -> base_frame transform published to the tf tree.
+  // This is useful for maintaining the one-parent rule in systems with multiple odometry sources.
+  bool invert_odom_to_base_tf_ = false;
+  bool invert_map_to_odom_tf_ = false;
 
   // Output frames hierarchy:
   // map - odom - base_link - ... - camera
@@ -125,6 +131,9 @@ private:
 
   // Message filter queue size
   const uint msg_filter_queue_size_;
+
+  // The QoS used for the image subscriptions
+  const rmw_qos_profile_t image_qos_;
 
   // Unit in seconds
   const int32_t msg_filter_max_interval_duration_;

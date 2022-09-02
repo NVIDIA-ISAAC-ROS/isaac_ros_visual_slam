@@ -22,7 +22,7 @@
 #include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/stopwatch.hpp"
-
+#include "isaac_ros_visual_slam/impl/qos.hpp"
 
 namespace isaac_ros
 {
@@ -55,7 +55,10 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
 
   // frames hierarchy:
   // map - odom - base_link - ... - camera
-  publish_tf_(declare_parameter<bool>("publish_tf", true)),
+  publish_odom_to_base_tf_(declare_parameter<bool>("publish_odom_to_base_tf", true)),
+  publish_map_to_odom_tf_(declare_parameter<bool>("publish_map_to_odom_tf", true)),
+  invert_odom_to_base_tf_(declare_parameter<bool>("invert_odom_to_base_tf", false)),
+  invert_map_to_odom_tf_(declare_parameter<bool>("invert_map_to_odom_tf", false)),
   map_frame_(declare_parameter<std::string>("map_frame", "map")),
   odom_frame_(declare_parameter<std::string>("odom_frame", "odom")),
   base_frame_(declare_parameter<std::string>("base_frame", "base_link")),
@@ -65,16 +68,17 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   path_max_size_(declare_parameter<int>("path_max_size", 1024)),
 
   msg_filter_queue_size_(declare_parameter<int>("msg_filter_queue_size", 100)),
+  image_qos_(parseQosString(declare_parameter<std::string>("image_qos", "SYSTEM_DEFAULT"))),
   msg_filter_max_interval_duration_(declare_parameter<int32_t>(
       "msg_filter_max_interval_duration",
       1)),
   // Subscribers
   left_image_sub_(message_filters::Subscriber<sensor_msgs::msg::Image>(
-      this, "stereo_camera/left/image")),
+      this, "stereo_camera/left/image", image_qos_)),
   left_camera_info_sub_(message_filters::Subscriber<sensor_msgs::msg::CameraInfo>(
       this, "stereo_camera/left/camera_info")),
   right_image_sub_(message_filters::Subscriber<sensor_msgs::msg::Image>(
-      this, "stereo_camera/right/image")),
+      this, "stereo_camera/right/image", image_qos_)),
   right_camera_info_sub_(message_filters::Subscriber<sensor_msgs::msg::CameraInfo>(
       this, "stereo_camera/right/camera_info")),
   imu_sub_(create_subscription<sensor_msgs::msg::Imu>(
@@ -617,11 +621,25 @@ void VisualSlamNode::TrackCameraPose(
     if (override_publishing_stamp_) {
       timestamp_output = impl_->node_clock->now();
     }
-    if (publish_tf_) {
-      impl_->PublishFrameTransform(timestamp_output, map_pose_odom, map_frame_, odom_frame_);
-      impl_->PublishFrameTransform(
-        timestamp_output, odom_pose_base_frame, odom_frame_,
-        base_frame_);
+    if (publish_map_to_odom_tf_) {
+      if (!invert_map_to_odom_tf_) {
+        impl_->PublishFrameTransform(timestamp_output, map_pose_odom, map_frame_, odom_frame_);
+      } else {
+        impl_->PublishFrameTransform(
+          timestamp_output,
+          map_pose_odom.inverse(), odom_frame_, map_frame_);
+      }
+    }
+    if (publish_odom_to_base_tf_) {
+      if (!invert_odom_to_base_tf_) {
+        impl_->PublishFrameTransform(
+          timestamp_output, odom_pose_base_frame, odom_frame_,
+          base_frame_);
+      } else {
+        impl_->PublishFrameTransform(
+          timestamp_output, odom_pose_base_frame.inverse(),
+          base_frame_, odom_frame_);
+      }
     }
     impl_->pose_cache.Add(timestamp.nanoseconds(), odom_pose_base_frame);
 

@@ -57,6 +57,7 @@ ament_auto_add_library(
   src/impl/posegraph_vis_helper.cpp
   src/impl/visual_slam_impl.cpp
   src/impl/viz_helper.cpp
+  src/impl/qos.cpp
 )
 target_compile_definitions(visual_slam_node
   PRIVATE "COMPOSITION_BUILDING_DLL"
