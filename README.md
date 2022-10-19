@@ -3,7 +3,8 @@
 <div align="center"><img src="resources/elbrus_ros_3.gif" width="400px"/></div>
 
 ## Overview
-This repository provides a ROS2 package that performs stereo visual simultaneous localization and mapping (VSLAM) and estimates stereo visual inertial odometry using the [Isaac Elbrus](https://docs.nvidia.com/isaac/packages/visual_slam/doc/elbrus_visual_slam.html) GPU-accelerated library. It takes in a time-synced pair of stereo images (grayscale) along with respective camera intrinsics to publish the current pose of the camera relative to its start pose. 
+
+This repository provides a ROS2 package that performs stereo visual simultaneous localization and mapping (VSLAM) and estimates stereo visual inertial odometry using the [Isaac Elbrus](https://docs.nvidia.com/isaac/packages/visual_slam/doc/elbrus_visual_slam.html) GPU-accelerated library. It takes in a time-synced pair of stereo images (grayscale) along with respective camera intrinsics to publish the current pose of the camera relative to its start pose.
 
 Elbrus is based on two core technologies: Visual Odometry (VO) and Simultaneous Localization and Mapping (SLAM).
 
@@ -15,9 +16,21 @@ Along with visual data, Elbrus can optionally use Inertial Measurement Unit (IMU
 
 To learn more about Elbrus SLAM click [here](docs/elbrus-slam.md).
 
-## Table of Contents 
+## Performance
+
+The following are the benchmark performance results of the prepared pipelines in this package, by supported platform:
+
+| Pipeline | AGX Orin           | Orin Nano         | x86_64 w/ RTX 3060 Ti |
+| -------- | ------------------ | ----------------- | --------------------- |
+| VSLAM    | 250 fps <br> 3.1ms | 105 fps <br> 10ms | 265 fps <br> 5.2ms    |
+
+These data have been collected per the methodology described [here](https://github.com/NVIDIA-ISAAC-ROS/.github/blob/main/profile/performance-summary.md#methodology).
+
+## Table of Contents
+
 - [Isaac ROS Visual SLAM](#isaac-ros-visual-slam)
   - [Overview](#overview)
+  - [Performance](#performance)
   - [Table of Contents](#table-of-contents)
   - [Latest Update](#latest-update)
   - [Supported Platforms](#supported-platforms)
@@ -41,20 +54,19 @@ To learn more about Elbrus SLAM click [here](docs/elbrus-slam.md).
   - [Updates](#updates)
 
 ## Latest Update
-Update 2022-08-31: Update to be compatible with JetPack 5.0.2
 
+Update 2022-10-19: Updated OSS licensing
 
 ## Supported Platforms
+
 This package is designed and tested to be compatible with ROS2 Humble running on [Jetson](https://developer.nvidia.com/embedded-computing) or an x86_64 system with an NVIDIA GPU.
 
 > **Note**: Versions of ROS2 earlier than Humble are **not** supported. This package depends on specific ROS2 implementation features that were only introduced beginning with the Humble release.
 
-
-| Platform | Hardware                                                                                                                                                                                                | Software                                                                                                             | Notes                                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Jetson   | [Jetson Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/)<br/>[Jetson Xavier](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-agx-xavier/) | [JetPack 5.0.2](https://developer.nvidia.com/embedded/jetpack)                                                       | For best performance, ensure that [power settings](https://docs.nvidia.com/jetson/archives/r34.1/DeveloperGuide/text/SD/PlatformPowerAndPerformance.html) are configured appropriately. |
-| x86_64   | NVIDIA GPU                                                                                                                                                                                              | [Ubuntu 20.04+](https://releases.ubuntu.com/20.04/) <br> [CUDA 11.6.1+](https://developer.nvidia.com/cuda-downloads) |
-
+| Platform | Hardware                                                                                                                                                                                                 | Software                                                                                                             | Notes                                                                                                                                                                                   |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Jetson   | [Jetson Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) <br> [Jetson Xavier](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-agx-xavier/) | [JetPack 5.0.2](https://developer.nvidia.com/embedded/jetpack)                                                       | For best performance, ensure that [power settings](https://docs.nvidia.com/jetson/archives/r34.1/DeveloperGuide/text/SD/PlatformPowerAndPerformance.html) are configured appropriately. |
+| x86_64   | NVIDIA GPU                                                                                                                                                                                               | [Ubuntu 20.04+](https://releases.ubuntu.com/20.04/) <br> [CUDA 11.6.1+](https://developer.nvidia.com/cuda-downloads) |
 
 ### Docker
 
@@ -64,7 +76,7 @@ To simplify development, we strongly recommend leveraging the Isaac ROS Dev Dock
 
 ## Coordinate Frames
 
-This section describes the coordinate frames that are involved in the `VisualSlamNode`. The frames discussed below are oriented as follows:<br>
+This section describes the coordinate frames that are involved in the `VisualSlamNode`. The frames discussed below are oriented as follows:
 
 <div align="center"><img src="resources/Axes.png" width="300px"/></div>
 
@@ -73,8 +85,8 @@ This section describes the coordinate frames that are involved in the `VisualSla
 3. `input_right_camera_frame`: The frame associated with the right eye of the stereo camera. Note that this is not the same as the optical frame. The default value is empty (''), which means left and right cameras have identity rotation and are horizontally aligned, so ``left_pose_right`` will be calculated from CameraInfo.
 4. `input_imu_frame`: The frame associated with the IMU sensor (if available). It is used to calculate ``left_pose_imu``.
 
-
 ## Quickstart
+
 1. Set up your development environment by following the instructions [here](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/blob/main/docs/dev-env-setup.md).  
 2. Clone this repository and its dependencies under `~/workspaces/isaac_ros-dev/src`.
 
@@ -84,12 +96,12 @@ This section describes the coordinate frames that are involved in the `VisualSla
 
     ```bash
     git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam
-    ``` 
+    ```
 
       ```bash
     git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common
-    ``` 
-    
+    ```
+
 3. Pull down a ROS Bag of sample data:
 
     ```bash
@@ -98,60 +110,71 @@ This section describes the coordinate frames that are involved in the `VisualSla
     ```
 
 4. Launch the Docker container using the `run_dev.sh` script:
-    
+
     ```bash
     cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common && \
       ./scripts/run_dev.sh
     ```
+
 5. Inside the container, build and source the workspace:
-   
+
     ```bash
     cd /workspaces/isaac_ros-dev && \
       colcon build --symlink-install && \
       source install/setup.bash
     ```
+
 6. (Optional) Run tests to verify complete and correct installation:  
-    
+
     ```bash
     colcon test --executor sequential
     ```
-7. Run the following launch files in the current terminal: 
-    
+
+7. Run the following launch files in the current terminal:
+
     ```bash
     ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py
-    ``` 
-8.  In a second terminal inside the Docker container, prepare rviz to display the output:
+    ```
+
+8. In a second terminal inside the Docker container, prepare rviz to display the output:
 
     ```bash
     source /workspaces/isaac_ros-dev/install/setup.bash && \
       rviz2 -d src/isaac_ros_visual_slam/isaac_ros_visual_slam/rviz/default.cfg.rviz 
     ```
-9. In an another terminal inside the Docker container, run the following ros bag file to start the demo: 
-    
+
+9. In an another terminal inside the Docker container, run the following ros bag file to start the demo:
+
     ```bash
     source /workspaces/isaac_ros-dev/install/setup.bash && \
       ros2 bag play src/isaac_ros_visual_slam/isaac_ros_visual_slam/test/test_cases/rosbags/small_pol_test/
-    ``` 
+    ```
+
     Rviz should start displaying the point clouds and poses like below:
+
   <div align="center"><img src="resources/Rviz_quick_start.png" width="600px"/></div>  
-  <br/>
 
 ## Next Steps
+
 ### Try More Examples
+
 To continue your exploration, check out the following suggested examples:
+
 - [Tutorial with Isaac Sim](docs/tutorial-isaac-sim.md#tutorial-with-isaac-sim)
 
 ### Customize your Dev Environment
+
 To customize your development environment, reference [this guide](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/blob/main/docs/modify-dockerfile.md).
 
 ## Package Reference
+
 ### isaac_ros_visual_slam
+
 #### Usage
 
 ```bash
 ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py
 ```
-
 
 #### ROS Parameters
 
@@ -176,8 +199,19 @@ ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py
 | `enable_slam_visualization`     | `bool`                | `false`          | Main flag to enable or disable visualization.                                                                                                                                                                                                                                               |
 | `enable_localization_n_mapping` | `bool`                | `true`           | If enabled, SLAM mode is on. If diabled, only Visual Odometry is on.                                                                                                                                                                                                                        |
 | `path_max_size`                 | `int`                 | `1024`           | The maximum size of the buffer for pose trail visualization.                                                                                                                                                                                                                                |
+| `publish_odom_to_base_tf`       | `bool`                | `true`           | Enable tf broadcaster for odom_frame->base_frame transform.                                                                                                                                                                                                                                 |
+| `publish_map_to_odom_tf`        | `bool`                | `true`           | Enable tf broadcaster for map_frame->odom_frame transform.                                                                                                                                                                                                                                  |
+| `invert_odom_to_base_tf`        | `bool`                | `false`          | Invert the odom_frame->base_frame transform before broadcasting to the tf tree.                                                                                                                                                                                                             |
+| `invert_map_to_odom_tf`         | `bool`                | `false`          | Invert the map_frame->odom_frame transform before broadcasting  to the tf tree.                                                                                                                                                                                                             |
+| `map_frame`                     | `std::string`         | `map`            | String name for the map_frame.                                                                                                                                                                                                                                                              |
+| `odom_frame`                    | `std::string`         | `odom`           | String name for the odom_frame.                                                                                                                                                                                                                                                             |
+| `base_frame`                    | `std::string`         | `base_link`      | String name for the base_frame.                                                                                                                                                                                                                                                             |
+| `override_publishing_stamp`     | `bool`                | `false`          | Override timestamp received from the left image with the timetsamp from rclcpp::Clock.                                                                                                                                                                                                      |
+| `msg_filter_queue_size`         | `int`                 | `100`            | Image + Camera Info Synchronizer message filter queue size.                                                                                                                                                                                                                                 |
+| `image_qos`                     | `std::string`         | `SENSOR_DATA`    | QoS profile for the left and right image subscribers.                                                                                                                                                                                                                                       |
 
 #### ROS Topics Subscribed
+
 | ROS Topic                          | Interface                                                                                                        | Description                                                     |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `/stereo_camera/left/image`        | [`sensor_msgs/Image`](https://github.com/ros2/common_interfaces/blob/humble/sensor_msgs/msg/Image.msg)           | The image from the left eye of the stereo camera in grayscale.  |
@@ -187,6 +221,7 @@ ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py
 | `visual_slam/imu`                  | [`sensor_msgs/Imu`](https://github.com/ros2/common_interfaces/blob/humble/sensor_msgs/msg/Imu.msg)               | Sensor data from the IMU(optional).                             |
 
 #### ROS Topics Published
+
 | ROS Topic                                 | Interface                                                                                                                                          | Description                                       |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `visual_slam/tracking/odometry`           | [`nav_msgs/Odometry`](https://github.com/ros2/common_interfaces/blob/humble/nav_msgs/msg/Odometry.msg)                                             | Odometry messages for the `base_link`.            |
@@ -197,6 +232,7 @@ ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py
 | `visual_slam/status`                      | [`isaac_ros_visual_slam_interfaces/VisualSlamStatus`](isaac_ros_visual_slam_interfaces/msg/VisualSlamStatus.msg)                                   | Status message for diagnostics.                   |
 
 #### ROS Services Advertised
+
 | ROS Service                     | Interface                                                                                                      | Description                                                  |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `visual_slam/reset`             | [`isaac_ros_visual_slam_interfaces/Reset`](isaac_ros_visual_slam_interfaces/srv/Reset.srv)                     | A service to reset the node.                                 |
@@ -204,28 +240,34 @@ ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py
 | `visual_slam/set_odometry_pose` | [`isaac_ros_visual_slam_interfaces/SetOdometryPose`](isaac_ros_visual_slam_interfaces/srv/SetOdometryPose.srv) | A service to set the pose of the odometry frame.             |
 
 #### ROS Actions Advertised
+
 | ROS Action                          | Interface                                                                                                                  | Description                                                                        |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `visual_slam/save_map`              | [`isaac_ros_visual_slam_interfaces/SaveMap`](isaac_ros_visual_slam_interfaces/action/SaveMap.action)                       | An action to save the landmarks and pose graph into a map and onto the disk.       |
 | `visual_slam/load_map_and_localize` | [`isaac_ros_visual_slam_interfaces/LoadMapAndLocalize`](isaac_ros_visual_slam_interfaces/action/LoadMapAndLocalize.action) | An action to load the map from the disk and localize within it given a prior pose. |
 
 ## Troubleshooting
+
 ### Isaac ROS Troubleshooting
+
 For solutions to problems with Isaac ROS, please check [here](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/blob/main/docs/troubleshooting.md).
 
 ### Troubleshooting Suggestions
-* If RViz is not showing the poses, check the **Fixed Frame** value.
-* If you are seeing `Tracker is lost.` messages frequently, it could be caused by the following issues:
-   * Fast motion causing the motion blur in the frames.
-   * Low-lighting conditions.
-   * The wrong `camerainfo` is being published.
-* For better performance:
-   * Increase the capture framerate from the camera to yield a better tracking result. 
-   * If input images are noisy, you can use the `denoise_input_images` flag in the node.
+
+- If RViz is not showing the poses, check the **Fixed Frame** value.
+- If you are seeing `Tracker is lost.` messages frequently, it could be caused by the following issues:
+  - Fast motion causing the motion blur in the frames.
+  - Low-lighting conditions.
+  - The wrong `camerainfo` is being published.
+- For better performance:
+  - Increase the capture framerate from the camera to yield a better tracking result.
+  - If input images are noisy, you can use the `denoise_input_images` flag in the node.
 
 ## Updates
+
 | Date       | Changes                                    |
 | ---------- | ------------------------------------------ |
+| 2022-10-19 | Updated OSS licensing                      |
 | 2022-08-31 | Update to be compatible with JetPack 5.0.2 |
 | 2022-06-30 | Support for ROS2 Humble                    |
 | 2022-03-17 | Documentation update for new features      |

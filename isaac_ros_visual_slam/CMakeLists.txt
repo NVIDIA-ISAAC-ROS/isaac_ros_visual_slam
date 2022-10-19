@@ -1,10 +1,19 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
-# NVIDIA CORPORATION and its licensors retain all intellectual property
-# and proprietary rights in and to this software, related documentation
-# and any modifications thereto.  Any use, reproduction, disclosure or
-# distribution of this software and related documentation without an express
-# license agreement from NVIDIA CORPORATION is strictly prohibited.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.5)
 project(isaac_ros_visual_slam LANGUAGES C CXX)
@@ -37,13 +46,22 @@ find_package(Eigen3 REQUIRED)
 find_package(Threads REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-# Elbrus
-include_directories(elbrus/include)
+# Elbrus (resolve path from ament_index)
+ament_index_get_resource(ELBRUS_RELATIVE_PATH elbrus isaac_ros_nitros)
+ament_index_get_prefix_path(AMENT_INDEX_PREFIX_PATHS)
+foreach(PREFIX_PATH IN LISTS AMENT_INDEX_PREFIX_PATHS)
+    if(EXISTS "${PREFIX_PATH}/${ELBRUS_RELATIVE_PATH}")
+      set(ELBRUS "${PREFIX_PATH}/${ELBRUS_RELATIVE_PATH}")
+      break()
+    endif()
+endforeach()
+
+include_directories(${ELBRUS}/include)
 add_library(elbrus SHARED IMPORTED)
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/elbrus/lib_x86_64/libelbrus.so)
+  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_x86_64/libelbrus.so)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/elbrus/lib_aarch64_jetpack50/libelbrus.so)
+  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_aarch64_jetpack50/libelbrus.so)
 endif()
 
 # visual_slam_node
@@ -80,18 +98,15 @@ install(TARGETS ${PROJECT_NAME}
 
 # Install Elbrus
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  install(DIRECTORY elbrus/lib_x86_64/ DESTINATION share/elbrus)
+  install(DIRECTORY ${ELBRUS}/lib_x86_64/ DESTINATION share/elbrus)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  install(DIRECTORY elbrus/lib_aarch64_jetpack50/ DESTINATION share/elbrus)
+  install(DIRECTORY ${ELBRUS}/lib_aarch64_jetpack50/ DESTINATION share/elbrus)
 endif()
 set_target_properties(visual_slam_node PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
 set_target_properties(visual_slam_node PROPERTIES INSTALL_RPATH "$ORIGIN/../share/elbrus")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-
-  # Ignore copyright notices since we use custom NVIDIA Isaac ROS Software License
-  set(ament_cmake_copyright_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
   find_package(launch_testing_ament_cmake REQUIRED)
