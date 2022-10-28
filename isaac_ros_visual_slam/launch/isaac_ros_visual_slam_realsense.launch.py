@@ -28,12 +28,10 @@ def generate_launch_description():
         package='realsense2_camera',
         executable='realsense2_camera_node',
         parameters=[{
-                'infra_height': 360,
-                'infra_width': 640,
+                'depth_module.profile': '640,360,90',
                 'enable_color': False,
                 'enable_depth': False,
                 'stereo_module.emitter_enabled': False,
-                'infra_fps': 90.0
         }]
     )
 
