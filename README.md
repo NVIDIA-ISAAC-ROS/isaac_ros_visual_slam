@@ -109,7 +109,7 @@ This section describes the coordinate frames that are involved in the `VisualSla
 3. Pull down a ROS Bag of sample data:
 
     ```bash
-    cd ~/workspaces/isaac_ros-dev/src/isaac_ros_visual_slam && \ 
+    cd ~/workspaces/isaac_ros-dev/src/isaac_ros_visual_slam && \
       git lfs pull -X "" -I isaac_ros_visual_slam/test/test_cases/rosbags/
     ```
 
