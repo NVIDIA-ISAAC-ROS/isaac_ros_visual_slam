@@ -26,11 +26,15 @@ The following are the benchmark performance results of the prepared pipelines in
 
 These data have been collected per the methodology described [here](https://github.com/NVIDIA-ISAAC-ROS/.github/blob/main/profile/performance-summary.md#methodology).
 
+## Commercial Support & Source Access
+For commercial support and access to source code, please [contact NVIDIA](https://developer.nvidia.com/isaac-platform-contact-us-form).
+
 ## Table of Contents
 
 - [Isaac ROS Visual SLAM](#isaac-ros-visual-slam)
   - [Overview](#overview)
   - [Performance](#performance)
+  - [Commercial Support \& Source Access](#commercial-support--source-access)
   - [Table of Contents](#table-of-contents)
   - [Latest Update](#latest-update)
   - [Supported Platforms](#supported-platforms)
@@ -41,7 +45,7 @@ These data have been collected per the methodology described [here](https://gith
     - [Try More Examples](#try-more-examples)
     - [Customize your Dev Environment](#customize-your-dev-environment)
   - [Package Reference](#package-reference)
-    - [isaac_ros_visual_slam](#isaac_ros_visual_slam)
+    - [isaac\_ros\_visual\_slam](#isaac_ros_visual_slam)
       - [Usage](#usage)
       - [ROS Parameters](#ros-parameters)
       - [ROS Topics Subscribed](#ros-topics-subscribed)
@@ -101,7 +105,7 @@ This section describes the coordinate frames that are involved in the `VisualSla
       ```bash
     git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common
     ```
-    
+
     ```bash
     git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nitros
     ```
