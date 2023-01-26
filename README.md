@@ -29,12 +29,16 @@ These data have been collected per the methodology described [here](https://gith
 ## Commercial Support & Source Access
 For commercial support and access to source code, please [contact NVIDIA](https://developer.nvidia.com/isaac-platform-contact-us-form).
 
+## Webinar Available
+Learn how to use this package by watching our on-demand webinar: [Pinpoint, 250 fps, ROS 2 Localization with vSLAM on Jetson](https://gateway.on24.com/wcc/experience/elitenvidiabrill/1407606/3998202/isaac-ros-webinar-series)
+
 ## Table of Contents
 
 - [Isaac ROS Visual SLAM](#isaac-ros-visual-slam)
   - [Overview](#overview)
   - [Performance](#performance)
   - [Commercial Support \& Source Access](#commercial-support--source-access)
+  - [Webinar Available](#webinar-available)
   - [Table of Contents](#table-of-contents)
   - [Latest Update](#latest-update)
   - [Supported Platforms](#supported-platforms)
