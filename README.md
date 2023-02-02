@@ -2,6 +2,12 @@
 
 <div align="center"><img src="resources/elbrus_ros_3.gif" width="400px"/></div>
 
+---
+## Webinar Available
+Learn how to use this package by watching our on-demand webinar: [Pinpoint, 250 fps, ROS 2 Localization with vSLAM on Jetson](https://gateway.on24.com/wcc/experience/elitenvidiabrill/1407606/3998202/isaac-ros-webinar-series)
+
+---
+
 ## Overview
 
 This repository provides a ROS2 package that performs stereo visual simultaneous localization and mapping (VSLAM) and estimates stereo visual inertial odometry using the [Isaac Elbrus](https://docs.nvidia.com/isaac/packages/visual_slam/doc/elbrus_visual_slam.html) GPU-accelerated library. It takes in a time-synced pair of stereo images (grayscale) along with respective camera intrinsics to publish the current pose of the camera relative to its start pose.
@@ -29,16 +35,13 @@ These data have been collected per the methodology described [here](https://gith
 ## Commercial Support & Source Access
 For commercial support and access to source code, please [contact NVIDIA](https://developer.nvidia.com/isaac-platform-contact-us-form).
 
-## Webinar Available
-Learn how to use this package by watching our on-demand webinar: [Pinpoint, 250 fps, ROS 2 Localization with vSLAM on Jetson](https://gateway.on24.com/wcc/experience/elitenvidiabrill/1407606/3998202/isaac-ros-webinar-series)
-
 ## Table of Contents
 
 - [Isaac ROS Visual SLAM](#isaac-ros-visual-slam)
+  - [Webinar Available](#webinar-available)
   - [Overview](#overview)
   - [Performance](#performance)
   - [Commercial Support \& Source Access](#commercial-support--source-access)
-  - [Webinar Available](#webinar-available)
   - [Table of Contents](#table-of-contents)
   - [Latest Update](#latest-update)
   - [Supported Platforms](#supported-platforms)
