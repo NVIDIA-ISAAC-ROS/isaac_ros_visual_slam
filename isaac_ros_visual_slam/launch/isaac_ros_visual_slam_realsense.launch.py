@@ -28,12 +28,12 @@ def generate_launch_description():
         package='realsense2_camera',
         executable='realsense2_camera_node',
         parameters=[{
-                'infra_height': 360,
-                'infra_width': 640,
+                'enable_infra1': True,
+                'enable_infra2': True,
                 'enable_color': False,
                 'enable_depth': False,
-                'stereo_module.emitter_enabled': False,
-                'infra_fps': 90.0
+                'depth_module.emitter_enabled': 0,
+                'depth_module.profile': '640x360x90'
         }]
     )
 
@@ -52,9 +52,7 @@ def generate_launch_description():
                     'enable_observations_view': True,
                     'map_frame': 'map',
                     'odom_frame': 'odom',
-                    'base_frame': 'camera_link',
-                    'input_left_camera_frame': 'camera_infra1_frame',
-                    'input_right_camera_frame': 'camera_infra2_frame'
+                    'base_frame': 'camera_link'
                     }],
         remappings=[('stereo_camera/left/image', 'camera/infra1/image_rect_raw'),
                     ('stereo_camera/left/camera_info', 'camera/infra1/camera_info'),
