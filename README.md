@@ -77,7 +77,7 @@ This package is designed and tested to be compatible with ROS2 Humble running on
 | Platform | Hardware                                                                                                                                                                                                 | Software                                                                                                             | Notes                                                                                                                                                                                   |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Jetson   | [Jetson Orin](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) <br> [Jetson Xavier](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-agx-xavier/) | [JetPack 5.0.2](https://developer.nvidia.com/embedded/jetpack)                                                       | For best performance, ensure that [power settings](https://docs.nvidia.com/jetson/archives/r34.1/DeveloperGuide/text/SD/PlatformPowerAndPerformance.html) are configured appropriately. |
-| x86_64   | NVIDIA GPU                                                                                                                                                                                               | [Ubuntu 20.04+](https://releases.ubuntu.com/20.04/) <br> [CUDA 11.6.1+](https://developer.nvidia.com/cuda-downloads) |
+| x86_64   | NVIDIA GPU <br> (Volta and newer GPU architectures) | [Ubuntu 20.04+](https://releases.ubuntu.com/20.04/) <br> [CUDA 11.6.1+](https://developer.nvidia.com/cuda-downloads) |
 
 ### Docker
 
@@ -120,7 +120,7 @@ This section describes the coordinate frames that are involved in the `VisualSla
 3. Pull down a ROS Bag of sample data:
 
     ```bash
-    cd ~/workspaces/isaac_ros-dev/src/isaac_ros_visual_slam && \ 
+    cd ~/workspaces/isaac_ros-dev/src/isaac_ros_visual_slam && \
       git lfs pull -X "" -I isaac_ros_visual_slam/test/test_cases/rosbags/
     ```
 
