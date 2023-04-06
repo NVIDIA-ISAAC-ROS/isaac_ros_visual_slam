@@ -112,44 +112,44 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   // Visualizators for odometry
   vis_observations_pub_(
     create_publisher<sensor_msgs::msg::PointCloud2>(
-      "visual_slam/vis/observations_cloud", rclcpp::QoS(1))),
+      "visual_slam/vis/observations_cloud", rclcpp::QoS(10))),
   vis_gravity_pub_(
     create_publisher<visualization_msgs::msg::Marker>(
-      "visual_slam/vis/gravity", rclcpp::QoS(1))),
+      "visual_slam/vis/gravity", rclcpp::QoS(10))),
   vis_vo_velocity_pub_(
     create_publisher<visualization_msgs::msg::MarkerArray>(
-      "visual_slam/vis/velocity", rclcpp::QoS(1))),
+      "visual_slam/vis/velocity", rclcpp::QoS(10))),
 
   // Visualizators for map and "loop closure"
   vis_landmarks_pub_(
     create_publisher<sensor_msgs::msg::PointCloud2>(
-      "visual_slam/vis/landmarks_cloud", rclcpp::QoS(1))),
+      "visual_slam/vis/landmarks_cloud", rclcpp::QoS(10))),
   vis_loop_closure_pub_(
     create_publisher<sensor_msgs::msg::PointCloud2>(
-      "visual_slam/vis/loop_closure_cloud", rclcpp::QoS(1))),
+      "visual_slam/vis/loop_closure_cloud", rclcpp::QoS(10))),
   vis_posegraph_nodes_pub_(
     create_publisher<geometry_msgs::msg::PoseArray>(
-      "visual_slam/vis/pose_graph_nodes", rclcpp::QoS(1))),
+      "visual_slam/vis/pose_graph_nodes", rclcpp::QoS(10))),
   vis_posegraph_edges_pub_(
     create_publisher<visualization_msgs::msg::Marker>(
-      "visual_slam/vis/pose_graph_edges", rclcpp::QoS(1))),
+      "visual_slam/vis/pose_graph_edges", rclcpp::QoS(10))),
   vis_posegraph_edges2_pub_(
     create_publisher<visualization_msgs::msg::Marker>(
-      "visual_slam/vis/pose_graph_edges2", rclcpp::QoS(1))),
+      "visual_slam/vis/pose_graph_edges2", rclcpp::QoS(10))),
 
   // Visualizators for localization
   vis_localizer_pub_(
     create_publisher<visualization_msgs::msg::MarkerArray>(
-      "visual_slam/vis/localizer", rclcpp::QoS(1))),
+      "visual_slam/vis/localizer", rclcpp::QoS(10))),
   vis_localizer_landmarks_pub_(
     create_publisher<sensor_msgs::msg::PointCloud2>(
-      "visual_slam/vis/localizer_map_cloud", rclcpp::QoS(1))),
+      "visual_slam/vis/localizer_map_cloud", rclcpp::QoS(10))),
   vis_localizer_observations_pub_(
     create_publisher<sensor_msgs::msg::PointCloud2>(
-      "visual_slam/vis/localizer_observations_cloud", rclcpp::QoS(1))),
+      "visual_slam/vis/localizer_observations_cloud", rclcpp::QoS(10))),
   vis_localizer_loop_closure_pub_(
     create_publisher<sensor_msgs::msg::PointCloud2>(
-      "visual_slam/vis/localizer_loop_closure_cloud", rclcpp::QoS(1))),
+      "visual_slam/vis/localizer_loop_closure_cloud", rclcpp::QoS(10))),
 
   // Slam Services
   reset_srv_(
@@ -172,7 +172,7 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   ELBRUS_GetVersion(&elbrus_major, &elbrus_minor);
   RCLCPP_INFO(get_logger(), "Elbrus version: %d.%d", elbrus_major, elbrus_minor);
   // VisualSlamNode is desined for this elbrus sdk version:
-  int32_t exp_elbrus_major = 10, exp_elbrus_minor = 0;
+  int32_t exp_elbrus_major = 10, exp_elbrus_minor = 5;
   if (elbrus_major != exp_elbrus_major || elbrus_minor != exp_elbrus_minor) {
     RCLCPP_ERROR(
       get_logger(), "VisualSlamNode is designed to work with Elbrus SDK v%d.%d",
@@ -232,17 +232,18 @@ void VisualSlamNode::ReadImuData(const sensor_msgs::msg::Imu::ConstSharedPtr msg
     exit(EXIT_FAILURE);
   }
 
-  // If elbrus handle is not initialized, then return.
-  if (impl_->IsInitialized() && enable_imu_) {
-    const auto measurement = impl_->ToElbrusImuMeasurement(msg_imu);
+  if (!impl_->IsInitialized() || !enable_imu_) {
+    return;
+  }
+  const auto measurement = impl_->ToElbrusImuMeasurement(msg_imu);
+  const rclcpp::Time timestamp(msg_imu->header.stamp.sec, msg_imu->header.stamp.nanosec);
+  const int64_t acqtime_ns = static_cast<int64_t>(timestamp.nanoseconds());
 
-    rclcpp::Time timestamp(msg_imu->header.stamp.sec, msg_imu->header.stamp.nanosec);
-    const int64_t acqtime_ns = static_cast<int64_t>(timestamp.nanoseconds());
-
-    if (!ELBRUS_RegisterImuMeasurement(impl_->elbrus_handle, acqtime_ns, &measurement)) {
-      RCLCPP_WARN(this->get_logger(), "ELBRUS has failed to register an IMU measurement");
-    }
-  } else {return;}
+  const ELBRUS_Status status = ELBRUS_RegisterImuMeasurement(
+    impl_->elbrus_handle, acqtime_ns, &measurement);
+  if (status != ELBRUS_SUCCESS) {
+    RCLCPP_WARN(this->get_logger(), "ELBRUS has failed to register an IMU measurement");
+  }
 }
 
 void VisualSlamNode::CallbackReset(
@@ -612,14 +613,16 @@ void VisualSlamNode::TrackCameraPose(
         impl_->base_link_pose_elbrus, start_elbrus_pose_rectified_ebrus)};
 
     // Use start odom pose
-    odom_pose_rectified_left = impl_->start_odom_pose * odom_pose_rectified_left;
+    odom_pose_rectified_left = ChangeBasis(
+      impl_->start_odom_pose, odom_pose_rectified_left);
 
     // Frames hierarchy:
     // map - odom - base_link - ... - camera
     const tf2::Transform map_pose_odom = odom_pose_rectified_left *
       odom_pose_smooth_left.inverse();
-    const tf2::Transform odom_pose_base_frame = odom_pose_smooth_left *
-      impl_->left_pose_base_link;
+
+    const tf2::Transform odom_pose_base_frame = ChangeBasis(
+      impl_->start_odom_pose, odom_pose_smooth_left);
 
     rclcpp::Time timestamp_output = msg_left_img->header.stamp;
     if (override_publishing_stamp_) {
@@ -648,6 +651,12 @@ void VisualSlamNode::TrackCameraPose(
     impl_->pose_cache.Add(timestamp.nanoseconds(), odom_pose_base_frame);
 
     geometry_msgs::msg::Twist velocity;
+    // Extract timestamp from left image and create headers for
+    // slam and vo poses
+    std_msgs::msg::Header header_map = msg_left_img->header;
+    header_map.frame_id = map_frame_;
+    std_msgs::msg::Header header_odom = msg_left_img->header;
+    header_odom.frame_id = odom_frame_;
 
     impl_->pose_cache.GetVelocity(
       velocity.linear.x, velocity.linear.y, velocity.linear.z,
@@ -658,11 +667,9 @@ void VisualSlamNode::TrackCameraPose(
 
     {
       // Pose Tracking
-      std_msgs::msg::Header header = msg_left_img->header;
-      header.frame_id = map_frame_;
 
       geometry_msgs::msg::Pose vo_pose;
-      tf2::toMsg(odom_pose_smooth_left, vo_pose);
+      tf2::toMsg(odom_pose_base_frame, vo_pose);
 
       geometry_msgs::msg::Pose slam_pose;
       tf2::toMsg(odom_pose_rectified_left, slam_pose);
@@ -670,14 +677,14 @@ void VisualSlamNode::TrackCameraPose(
       if (HasSubscribers(*this, tracking_vo_pose_pub_)) {
         // Tracking_vo_pose_pub_
         auto pose_only = std::make_unique<geometry_msgs::msg::PoseStamped>();
-        pose_only->header = header;
+        pose_only->header = header_odom;
         pose_only->pose = vo_pose;
         tracking_vo_pose_pub_->publish(std::move(pose_only));
       }
       if (HasSubscribers(*this, tracking_vo_pose_covariance_pub_)) {
         // Tracking_vo_covariance_pub_
         auto pose_n_cov = std::make_unique<geometry_msgs::msg::PoseWithCovarianceStamped>();
-        pose_n_cov->header = header;
+        pose_n_cov->header = header_odom;
         pose_n_cov->pose.pose = vo_pose;
         for (size_t i = 0; i < 6 * 6; i++) {
           pose_n_cov->pose.covariance[i] = static_cast<double>(pose_estimate.covariance[i]);
@@ -686,8 +693,7 @@ void VisualSlamNode::TrackCameraPose(
       }
       if (HasSubscribers(*this, tracking_odometry_pub_)) {
         nav_msgs::msg::Odometry odom;
-        odom.header = header;
-        odom.header.frame_id = odom_frame_;
+        odom.header = header_odom;
         odom.child_frame_id = base_frame_;
 
         odom.pose.pose = vo_pose;
@@ -725,24 +731,24 @@ void VisualSlamNode::TrackCameraPose(
       if (HasSubscribers(*this, tracking_vo_path_pub_)) {
         // Tracking_vo_path_pub_
         geometry_msgs::msg::PoseStamped pose_stamped;
-        pose_stamped.header = header;
+        pose_stamped.header = header_odom;
         pose_stamped.pose = vo_pose;
         impl_->vo_path.add(pose_stamped);
 
         auto path_msg = std::make_unique<nav_msgs::msg::Path>();
-        path_msg->header = header;
+        path_msg->header = header_odom;
         path_msg->poses = impl_->vo_path.getData();
         tracking_vo_path_pub_->publish(std::move(path_msg));
       }
       if (HasSubscribers(*this, tracking_slam_path_pub_)) {
         // Tracking_slam_path_pub_
         geometry_msgs::msg::PoseStamped pose_stamped;
-        pose_stamped.header = header;
+        pose_stamped.header = header_map;
         pose_stamped.pose = slam_pose;
         impl_->slam_path.add(pose_stamped);
 
         auto path_msg = std::make_unique<nav_msgs::msg::Path>();
-        path_msg->header = header;
+        path_msg->header = header_map;
         path_msg->poses = impl_->slam_path.getData();
         tracking_slam_path_pub_->publish(std::move(path_msg));
       }
@@ -772,7 +778,7 @@ void VisualSlamNode::TrackCameraPose(
       }
 
       isaac_ros_visual_slam_interfaces::msg::VisualSlamStatus visual_slam_status_msg;
-      visual_slam_status_msg.header = msg_left_img->header;
+      visual_slam_status_msg.header = header_map;
       visual_slam_status_msg.vo_state = pose_estimate.vo_state;
       visual_slam_status_msg.integrator_state = pose_estimate.integrator_state;
       visual_slam_status_msg.node_callback_execution_time = stopwatch.Seconds();
