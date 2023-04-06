@@ -1,3 +1,6 @@
+# Ignore Python files in linguist
+*.py linguist-detectable=false
+
 # Images
 *.gif filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text

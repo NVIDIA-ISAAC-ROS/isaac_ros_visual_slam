@@ -15,33 +15,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.23.2)
 project(isaac_ros_visual_slam LANGUAGES C CXX)
-
-# Default to C++17
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
-endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Default to Release build
-if(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
-endif()
-message( STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}" )
-
-execute_process(
-  COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
+execute_process(COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
 message( STATUS "Architecture: ${ARCHITECTURE}" )
 
-# find dependencies
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-# Eigen
+# Dependencies
 find_package(Eigen3 REQUIRED)
 find_package(Threads REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
@@ -59,9 +46,9 @@ endforeach()
 include_directories(${ELBRUS}/include)
 add_library(elbrus SHARED IMPORTED)
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_x86_64/libelbrus.so)
+  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_x86_64_cuda_11_8/libelbrus.so)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_aarch64_jetpack50/libelbrus.so)
+  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_aarch64_jetpack51/libelbrus.so)
 endif()
 
 # visual_slam_node
@@ -77,9 +64,6 @@ ament_auto_add_library(
   src/impl/viz_helper.cpp
   src/impl/qos.cpp
 )
-target_compile_definitions(visual_slam_node
-  PRIVATE "COMPOSITION_BUILDING_DLL"
-)
 target_link_libraries(visual_slam_node elbrus)
 rclcpp_components_register_nodes(visual_slam_node "isaac_ros::visual_slam::VisualSlamNode")
 set(node_plugins "${node_plugins}isaac_ros::visual_slam::VisualSlamNode;$<TARGET_FILE:visual_slam_node>\n")
@@ -90,17 +74,11 @@ ament_auto_add_executable(${PROJECT_NAME}
 )
 target_link_libraries(${PROJECT_NAME} visual_slam_node)
 
-install(TARGETS ${PROJECT_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-)
-
 # Install Elbrus
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  install(DIRECTORY ${ELBRUS}/lib_x86_64/ DESTINATION share/elbrus)
+  install(DIRECTORY ${ELBRUS}/lib_x86_64_cuda_11_8/ DESTINATION share/elbrus)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  install(DIRECTORY ${ELBRUS}/lib_aarch64_jetpack50/ DESTINATION share/elbrus)
+  install(DIRECTORY ${ELBRUS}/lib_aarch64_jetpack51/ DESTINATION share/elbrus)
 endif()
 set_target_properties(visual_slam_node PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
 set_target_properties(visual_slam_node PROPERTIES INSTALL_RPATH "$ORIGIN/../share/elbrus")
@@ -113,4 +91,4 @@ if(BUILD_TESTING)
   add_launch_test(test/isaac_ros_visual_slam_pol.py)
 endif()
 
-ament_auto_package(INSTALL_TO_SHARE launch)
+ament_auto_package(INSTALL_TO_SHARE launch params)

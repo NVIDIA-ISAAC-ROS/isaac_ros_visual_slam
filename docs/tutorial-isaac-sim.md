@@ -4,7 +4,9 @@
 
 ## Overview
 
-This tutorial walks you through a pipeline to estimate 3D pose of the camera with [Visual SLAM](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam) using images from Isaac Sim.
+This tutorial walks you through a graph to estimate 3D pose of the camera with [Visual SLAM](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam) using images from Isaac Sim.
+
+Last validated with [Isaac Sim 2022.2.1](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/release_notes.html#id1)
 
 ## Tutorial Walkthrough
 
@@ -25,19 +27,19 @@ This tutorial walks you through a pipeline to estimate 3D pose of the camera wit
     ```
 
 4. Install and launch Isaac Sim following the steps in the [Isaac ROS Isaac Sim Setup Guide](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/blob/main/docs/isaac-sim-sil-setup.md)
-5. Open up the Isaac ROS Common USD scene (using the "content" window) located at:
+5. Open up the Isaac ROS Common USD scene (using the *Content* tab) located at:
 
-   `omniverse://localhost/NVIDIA/Assets/Isaac/2022.1/Isaac/Samples/ROS2/Scenario/carter_warehouse_apriltags_worker.usd`.
+    ```text
+    http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2022.2.1/Isaac/Samples/ROS2/Scenario/carter_warehouse_apriltags_worker.usd
+    ```
 
    And wait for it to load completely.
-   > **Note:** To use a different server, replace `localhost` with `<your_nucleus_server>`
-6. Go to the stage tab and select `/World/Carter_ROS/ROS_Cameras/ros2_create_camera_right_info`, then in properties tab -> Compute Node -> Inputs -> stereoOffset X change `0` to `-175.92`.
+6. Go to the *Stage* tab and select `/World/Carter_ROS/ROS_Cameras/ros2_create_camera_right_info`, then in *Property* tab *-> OmniGraph Node -> Inputs -> stereoOffset X* change `0` to `-175.92`.
     <div align="center"><img src="../resources/Isaac_sim_set_stereo_offset.png" width="500px"/></div>
-
-7. Enable the right camera for a stereo image pair. Go to the stage tab and select `/World/Carter_ROS/ROS_Cameras/enable_camera_right`, then tick the `Condition` checkbox.
+7. Enable the right camera for a stereo image pair. Go to the *Stage* tab and select `/World/Carter_ROS/ROS_Cameras/enable_camera_right`, then tick the *Condition* checkbox.
     <div align="center"><img src="../resources/Isaac_sim_enable_stereo.png" width="500px"/></div>
 8. Press **Play** to start publishing data from the Isaac Sim application.
-    <div align="center"><img src="../resources/Isaac_sim_visual_slam.png" width="800px"/></div>
+    <div align="center"><img src="../resources/Isaac_sim_play.png" width="800px"/></div>
 9. In a separate terminal, start `isaac_ros_visual_slam` using the launch files:
 
     ```bash
@@ -67,17 +69,17 @@ This tutorial walks you through a pipeline to estimate 3D pose of the camera wit
 
 ## Saving and using the map
 
-As soon as you start the visual SLAM node, it starts storing the landmarks and the pose graph. You can save them in a map and store the map onto a disk. Make a call to the `SaveMap` ROS2 Action with the following command:
+As soon as you start the visual SLAM node, it starts storing the landmarks and the pose graph. You can save them in a map and store the map onto a disk. Make a call to the `SaveMap` ROS 2 Action with the following command:
 
 ```bash
 ros2 action send_goal /visual_slam/save_map isaac_ros_visual_slam_interfaces/action/SaveMap "{map_url: /path/to/save/the/map}"
 ```
 
-</br>
+<br>
 <div align="center"><img src="../resources/Save_map.png" width="400px"/></div>
-</br>
+<br>
 <div align="center"><img src="../resources/RViz_isaac_sim_mapping.png" width="800px" alt="Sample run before saving the map" title="Sample run before saving the map."/></div>
-</br>
+<br>
 
 Now, you will try to load and localize in the previously saved map. First, stop the `visual_slam` node lauched for creating and saving the map, then relaunch it.
 
@@ -88,7 +90,7 @@ ros2 action send_goal /visual_slam/load_map_and_localize isaac_ros_visual_slam_i
 ```
 
 <div align="center"><img src="../resources/Load_and_localize.png" width="400px"/></div>
-</br>
+<br>
 
 Once the above step returns success, you have successfully loaded and localized your robot in the map. If it results in failure, there might be a possibilty that the current landmarks from the approximate start location are not matching with stored landmarks and you need to provide another valid value.
 
@@ -98,7 +100,7 @@ Once the above step returns success, you have successfully loaded and localized 
         <figcaption>Before Localization</figcaption>
     </figure>
 </div>
-</br>
+<br>
 <div align="center">
     <figure class="image">
         <img src="../resources/After_localization.png" width="600px" alt="After localization" title="After localization."/>

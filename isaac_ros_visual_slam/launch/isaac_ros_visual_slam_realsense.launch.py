@@ -33,7 +33,10 @@ def generate_launch_description():
                 'enable_color': False,
                 'enable_depth': False,
                 'depth_module.emitter_enabled': 0,
-                'depth_module.profile': '640x360x90'
+                'depth_module.profile': '640x360x90',
+                'enable_gyro': True,
+                'enable_accel': True,
+                'unite_imu_method': 2
         }]
     )
 
@@ -52,12 +55,15 @@ def generate_launch_description():
                     'enable_observations_view': True,
                     'map_frame': 'map',
                     'odom_frame': 'odom',
-                    'base_frame': 'camera_link'
+                    'base_frame': 'camera_link',
+                    'input_imu_frame': 'camera_gyro_optical_frame',
+                    'enable_imu': True
                     }],
         remappings=[('stereo_camera/left/image', 'camera/infra1/image_rect_raw'),
                     ('stereo_camera/left/camera_info', 'camera/infra1/camera_info'),
                     ('stereo_camera/right/image', 'camera/infra2/image_rect_raw'),
-                    ('stereo_camera/right/camera_info', 'camera/infra2/camera_info')]
+                    ('stereo_camera/right/camera_info', 'camera/infra2/camera_info'),
+                    ('visual_slam/imu', 'camera/imu')]
     )
 
     visual_slam_launch_container = ComposableNodeContainer(
