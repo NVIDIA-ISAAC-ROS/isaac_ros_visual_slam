@@ -58,16 +58,13 @@ def setting_camera():
 
 def main(scenario_path: str,
          environment_prim_path: str,
-         random_command_generation: bool,
-         num_waypoints: int,
-         headless: bool = False,
          tick_rate_hz: float = 20.0):
 
     # Start up the simulator
     from omni.isaac.kit import SimulationApp
     simulation_app = SimulationApp({
         'renderer': 'RayTracedLighting',
-        'headless': headless
+        'headless': False 
     })
 
     import omni.kit.commands
@@ -150,25 +147,8 @@ if __name__ == '__main__':
         type=int,
         help='The rate (in hz) that we step the simulation at.',
         default=20)
-    parser.add_argument(
-        '--anim_people_waypoint_dir',
-        help='Directory location to save the waypoints in a yaml file')
-    parser.add_argument('--headless', action='store_true',
-                        help='Run the simulation headless.')
-    parser.add_argument(
-        '--random_command_generation',
-        help='Choose whether we generate random waypoint or run sim',
-        action='store_true')
-    parser.add_argument('--num_waypoints', type=int,
-                        help='Number of waypoints to generate for each human in the scene.',
-                        default=5)
     # This allows for IsaacSim options to be passed on the SimulationApp.
     args, unknown = parser.parse_known_args()
 
-    # If we want to generate the command file then we run the simulation headless
-    if args.random_command_generation:
-        args.headless = True
-
     main(args.scenario_path, args.environment_prim_path,
-         args.random_command_generation, args.num_waypoints, args.headless,
          args.tick_rate_hz)
