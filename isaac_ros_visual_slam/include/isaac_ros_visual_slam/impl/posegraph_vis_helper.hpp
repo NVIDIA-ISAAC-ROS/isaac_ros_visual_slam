@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ struct PoseGraphVisHelper : public VisHelper
 {
 public:
   PoseGraphVisHelper(
-    ELBRUS_DataLayer layer,
+    CUVSLAM_DataLayer layer,
     uint32_t max_items_count = 1024,
     uint32_t period_ms = 500
   );
@@ -45,8 +45,8 @@ public:
     const rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr publisher_nodes,
     const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges,
     const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges2,
-    ELBRUS_TrackerHandle elbrus_handle,
-    const tf2::Transform & base_link_pose_elbrus,
+    CUVSLAM_TrackerHandle cuvslam_handle,
+    const tf2::Transform & base_link_pose_cuvslam,
     const rclcpp::Node & node,
     const std::string & frame_id);
 
@@ -55,7 +55,7 @@ public:
   void Run();
 
 protected:
-  ELBRUS_DataLayer layer_ = LL_POSE_GRAPH;
+  CUVSLAM_DataLayer layer_ = LL_POSE_GRAPH;
   uint32_t max_items_count_ = 1024;
   uint32_t period_ms_ = 500;
 

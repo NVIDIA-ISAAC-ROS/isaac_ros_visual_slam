@@ -71,6 +71,7 @@ Last validated with [Isaac Sim 2022.2.1](https://docs.omniverse.nvidia.com/app_i
 
 As soon as you start the visual SLAM node, it starts storing the landmarks and the pose graph. You can save them in a map and store the map onto a disk. Make a call to the `SaveMap` ROS 2 Action with the following command:
 
+> Note: `/path/to/save/the/map` must be a new empty directory everytime you call this action as this action will overwrite the existing contents. 
 ```bash
 ros2 action send_goal /visual_slam/save_map isaac_ros_visual_slam_interfaces/action/SaveMap "{map_url: /path/to/save/the/map}"
 ```

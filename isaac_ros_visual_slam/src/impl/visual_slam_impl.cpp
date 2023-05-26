@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@
 #include <utility>
 
 #include "eigen3/Eigen/Dense"
-#include "isaac_ros_visual_slam/impl/elbrus_ros_convertion.hpp"
+#include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
+#include "isaac_ros_visual_slam/impl/stopwatch.hpp"
 #include "isaac_ros_visual_slam/impl/visual_slam_impl.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
@@ -30,15 +31,16 @@ namespace
 constexpr char kFisheye4[] = "fisheye4";
 constexpr char kBrown5k[] = "brown5k";
 constexpr char kPinhole[] = "pinhole";
+constexpr char kPolynomial[] = "polynomial";
 
 // ROS' DISTORTION MODELS:
 // 1.PLUMB_BOB
 // 2.RATIONAL_POLYNOMIAL
-// ELBRUS' DISTORTION MODELS:
+// CUVSLAM' DISTORTION MODELS:
 // 1.brown5k
 // 2.fisheye4
-// ROS' PLUMB_BOB = Elbrus' brown5k
-// ROS' RATIONAL_POLYNOMIAL is not supported in Elbrus
+// 3.polynomial
+// ROS' PLUMB_BOB = cuVSLAM' brown5k
 enum DistortionModel
 {
   BROWN,
@@ -54,11 +56,30 @@ const std::unordered_map<std::string, DistortionModel> g_str_to_distortion_model
     {"pinhole", DistortionModel::PINHOLE},
     {"rational_polynomial", DistortionModel::RATIONAL_POLYNOMIAL}});
 
-void PrintConfiguration(const rclcpp::Logger & logger, const ELBRUS_Configuration & cfg)
+void PrintConfiguration(const rclcpp::Logger & logger, const CUVSLAM_Configuration & cfg)
 {
-  RCLCPP_INFO(logger, "Enable IMU integrator: %s", cfg.enable_imu_integrator ? "true" : "false");
   RCLCPP_INFO(logger, "Use use_gpu: %s", cfg.use_gpu ? "true" : "false");
+  RCLCPP_INFO(logger, "Enable IMU Fusion: %s", cfg.enable_imu_fusion ? "true" : "false");
+  if (cfg.enable_imu_fusion) {
+    RCLCPP_INFO(
+      logger, "gyroscope_noise_density: %f",
+      cfg.imu_calibration.gyroscope_noise_density);
+    RCLCPP_INFO(
+      logger, "gyroscope_random_walk: %f",
+      cfg.imu_calibration.gyroscope_random_walk);
+    RCLCPP_INFO(
+      logger, "accelerometer_noise_density: %f",
+      cfg.imu_calibration.accelerometer_noise_density);
+    RCLCPP_INFO(
+      logger, "accelerometer_random_walk: %f",
+      cfg.imu_calibration.accelerometer_random_walk);
+    RCLCPP_INFO(
+      logger, "frequency: %f",
+      cfg.imu_calibration.frequency);
+  }
 }
+
+constexpr double kNanoSecInMilliSec = 1e6;
 }  // namespace
 
 
@@ -70,17 +91,17 @@ namespace visual_slam
 VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & node)
 : logger_name(std::string(node.get_logger().get_name())),
   node_clock(node.get_clock()),
-  // Set elbrus_pose_base_link for converting ROS coordinate to Elbrus coordinate
-  // ROS   ->  Elbrus
+  // Set cuvslam_pose_base_link for converting ROS coordinate to cuVSLAM coordinate
+  // ROS   ->  cuVSLAM
   // x     ->  -z
   // y     ->   -x
   // z     ->  y
-  elbrus_pose_base_link(tf2::Matrix3x3(
+  cuvslam_pose_base_link(tf2::Matrix3x3(
       0, -1, 0,
       0, 0, 1,
       -1, 0, 0
     )),
-  base_link_pose_elbrus(elbrus_pose_base_link.inverse()),
+  base_link_pose_cuvslam(cuvslam_pose_base_link.inverse()),
   tf_buffer(std::make_unique<tf2_ros::Buffer>(node_clock)),
   tf_listener(std::make_shared<tf2_ros::TransformListener>(*tf_buffer)),
   tf_publisher(std::make_unique<tf2_ros::TransformBroadcaster>(&node)),
@@ -97,7 +118,9 @@ VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & node)
     LandmarksVisHelper::CM_WEIGHT_BW_MODE, 16),
   localizer_lc_landmarks_vis_helper(LL_LOCALIZER_LOOP_CLOSURE, 2048,
     LandmarksVisHelper::CM_RED_MODE, 16),
-  track_execution_times(100)
+  track_execution_times(100),
+  delta_ts(100),
+  last_img_ts(0)
 {}
 
 VisualSlamNode::VisualSlamImpl::~VisualSlamImpl()
@@ -108,7 +131,7 @@ VisualSlamNode::VisualSlamImpl::~VisualSlamImpl()
 // Flag to check the status of initialization.
 bool VisualSlamNode::VisualSlamImpl::IsInitialized()
 {
-  return elbrus_handle != nullptr;
+  return cuvslam_handle != nullptr;
 }
 
 void VisualSlamNode::VisualSlamImpl::Init(
@@ -116,7 +139,7 @@ void VisualSlamNode::VisualSlamImpl::Init(
   const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_left_ci,
   const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_right_ci)
 {
-  if (elbrus_handle == nullptr) {
+  if (cuvslam_handle == nullptr) {
     const rclcpp::Time & stamp = msg_left_ci->header.stamp;
 
     std::string in_baselink = node.input_base_frame_;
@@ -138,13 +161,10 @@ void VisualSlamNode::VisualSlamImpl::Init(
       RCLCPP_INFO(rclcpp::get_logger(logger_name), "left_pose_right reading from TF Tree");
       left_pose_right =
         ChangeBasis(
-        elbrus_pose_base_link,
+        cuvslam_pose_base_link,
         GetFrameTransform(stamp, node.input_left_camera_frame_, node.input_right_camera_frame_));
     } else {
       RCLCPP_INFO(rclcpp::get_logger(logger_name), "left_pose_right reading from CameraInfo");
-
-      // Set right camera rotation to identity
-      left_pose_right.setIdentity();
 
       // Get camera intrinsics to set camera coordinate frames
       const double * right_p = msg_right_ci->p.data();
@@ -162,16 +182,59 @@ void VisualSlamNode::VisualSlamImpl::Init(
         return;
       }
       RCLCPP_INFO(node.get_logger(), "Baseline is : %f", baseline);
+
       const Eigen::Vector3d right_camera_translation(baseline, right_p[7], right_p[11]);
+      // Set right camera rotation to identity
+      left_pose_right.setIdentity();
       left_pose_right.setOrigin(
         tf2::Vector3(
           right_camera_translation[0],
           right_camera_translation[1],
           right_camera_translation[2]));
+
+      if (!node.rectified_images_) {
+        //              T2
+        //     A<--------------B
+        //     |               |
+        //  T1 |               |  T3
+        //     V               V
+        //     C<--------------D
+        //             T4
+        // A and B = Left and Right camera before stereo rectification respectively
+        // C and D = Left and Right camera after stereo rectification respectively
+        // T2 = [R2|t2] (left_unrect_pose_right_unrect)
+        // T1 = [R1|t1] where t1 = {0, 0, 0} (left_rect_pose_left_unrect)
+        // T3 = [R3|t3] where t3 = {0, 0, 0} (right_rect_pose_right_unrect)
+        // T4 = [R4|t4] where R4 is [identity] and
+        // t4 = {baseline, 0, 0} [After rectification] (left_rect_pose_right_rect)
+        //    T4 = T1*T2*T3.inverse()
+        // => T2 = T1.inverse()*T4*T3
+
+        // Get camera rectification matrix
+        const double * left_r = msg_left_ci->r.data();
+        const double * right_r = msg_right_ci->r.data();
+        const tf2::Matrix3x3 left_r_mat(
+          left_r[0], left_r[1], left_r[2],
+          left_r[3], left_r[4], left_r[5],
+          left_r[6], left_r[7], left_r[8]);
+        const tf2::Matrix3x3 right_r_mat(
+          right_r[0], right_r[1], right_r[2],
+          right_r[3], right_r[4], right_r[5],
+          right_r[6], right_r[7], right_r[8]);
+
+        tf2::Transform left_rect_pose_right_rect(left_pose_right);
+        tf2::Transform left_rect_pose_left_unrect(left_r_mat);
+        tf2::Transform right_rect_pose_right_unrect(right_r_mat);
+        left_pose_right =
+          left_rect_pose_left_unrect.inverse() * left_rect_pose_right_rect *
+          right_rect_pose_right_unrect;
+        // Invert transform for cuVSLAM for unrectified case.
+        left_pose_right.setBasis(left_pose_right.getBasis().inverse());
+      }
     }
 
     tf2::Transform left_camera_pose_imu = tf2::Transform::getIdentity();
-    if (node.enable_imu_) {
+    if (node.enable_imu_fusion_) {
       RCLCPP_INFO(rclcpp::get_logger(logger_name), "left_camera_pose_imu reading from TF Tree");
       std::string left_cam_frame = node.input_left_camera_frame_;
 
@@ -180,38 +243,41 @@ void VisualSlamNode::VisualSlamImpl::Init(
         left_cam_frame = in_baselink;
       }
 
-      // Convert the left_camera_pose_imu from ROS to Elbrus frame
+      // Convert the left_camera_pose_imu from ROS to cuVSLAM frame
       left_camera_pose_imu = ChangeBasis(
-        elbrus_pose_base_link,
+        cuvslam_pose_base_link,
         GetFrameTransform(stamp, left_cam_frame, node.input_imu_frame_));
     }
 
-    // Elbrus configuration needs IMU pose Left camera
-    const ELBRUS_Configuration configuration = GetConfiguration(
-      node, ToElbrusPose(left_camera_pose_imu.inverse()));
+    // cuVSLAM configuration needs Left pose IMU camera
+    const CUVSLAM_Configuration configuration =
+      GetConfiguration(node, TocuVSLAMPose(left_camera_pose_imu));
 
-    ELBRUS_CameraRig rig;
-    rig.cameras = elbrus_cameras.data();
+    CUVSLAM_CameraRig rig;
+    rig.cameras = cuvslam_cameras.data();
     rig.num_cameras = kNumCameras;
 
-    SetElbrusCameraPose(
-      elbrus_cameras[LEFT_CAMERA_IDX],
-      ToElbrusPose(tf2::Transform::getIdentity()));
-    SetElbrusCameraPose(
-      elbrus_cameras[RIGHT_CAMERA_IDX], ToElbrusPose(left_pose_right));
+    SetcuVSLAMCameraPose(
+      cuvslam_cameras[LEFT_CAMERA_IDX], TocuVSLAMPose(tf2::Transform::getIdentity()));
+    SetcuVSLAMCameraPose(cuvslam_cameras[RIGHT_CAMERA_IDX], TocuVSLAMPose(left_pose_right));
 
-    elbrus_cameras[LEFT_CAMERA_IDX].parameters = left_intrinsics.data();
-    elbrus_cameras[RIGHT_CAMERA_IDX].parameters = right_intrinsics.data();
-    ReadCameraIntrinsics(msg_left_ci, elbrus_cameras[LEFT_CAMERA_IDX], left_intrinsics);
-    ReadCameraIntrinsics(msg_right_ci, elbrus_cameras[RIGHT_CAMERA_IDX], right_intrinsics);
+    cuvslam_cameras[LEFT_CAMERA_IDX].parameters = left_intrinsics.data();
+    cuvslam_cameras[RIGHT_CAMERA_IDX].parameters = right_intrinsics.data();
+    ReadCameraIntrinsics(msg_left_ci, cuvslam_cameras[LEFT_CAMERA_IDX], left_intrinsics);
+    ReadCameraIntrinsics(msg_right_ci, cuvslam_cameras[RIGHT_CAMERA_IDX], right_intrinsics);
 
-    ELBRUS_TrackerHandle tracker;
+    CUVSLAM_TrackerHandle tracker;
     PrintConfiguration(rclcpp::get_logger(logger_name), configuration);
-    const ELBRUS_Status status = ELBRUS_CreateTracker(&tracker, &rig, &configuration);
-    if (status != ELBRUS_SUCCESS) {
+    Stopwatch stopwatch_tracker;
+    StopwatchScope ssw_tracker(stopwatch_tracker);
+    const CUVSLAM_Status status = CUVSLAM_CreateTracker(&tracker, &rig, &configuration);
+    RCLCPP_INFO(
+      rclcpp::get_logger(logger_name), "Time taken by CUVSLAM_CreateTracker(): %f",
+      ssw_tracker.Stop());
+    if (status != CUVSLAM_SUCCESS) {
       RCLCPP_ERROR(
         node.get_logger(),
-        "Failed to initialize ELBRUS tracker: %d", status);
+        "Failed to initialize CUVSLAM tracker: %d", status);
       return;
     }
 
@@ -226,30 +292,30 @@ void VisualSlamNode::VisualSlamImpl::Init(
     if (node.enable_slam_visualization_) {
       observations_vis_helper.Init(
         node.vis_observations_pub_,
-        tracker, base_link_pose_elbrus, node, camera_frame_for_publishing);
+        tracker, base_link_pose_cuvslam, node, camera_frame_for_publishing);
       landmarks_vis_helper.Init(
         node.vis_landmarks_pub_,
-        tracker, base_link_pose_elbrus, node, node.map_frame_);
+        tracker, base_link_pose_cuvslam, node, node.map_frame_);
       lc_landmarks_vis_helper.Init(
         node.vis_loop_closure_pub_,
-        tracker, base_link_pose_elbrus, node, node.map_frame_);
+        tracker, base_link_pose_cuvslam, node, node.map_frame_);
       pose_graph_helper.Init(
         node.vis_posegraph_nodes_pub_, node.vis_posegraph_edges_pub_,
-        node.vis_posegraph_edges2_pub_, tracker, base_link_pose_elbrus, node, node.map_frame_);
+        node.vis_posegraph_edges2_pub_, tracker, base_link_pose_cuvslam, node, node.map_frame_);
       localizer_helper.Init(
         node.vis_localizer_pub_,
-        tracker, base_link_pose_elbrus, node, node.map_frame_);
+        tracker, base_link_pose_cuvslam, node, node.map_frame_);
       localizer_landmarks_vis_helper.Init(
         node.vis_localizer_landmarks_pub_,
-        tracker, base_link_pose_elbrus, node, node.map_frame_);
+        tracker, base_link_pose_cuvslam, node, node.map_frame_);
       localizer_observations_vis_helper.Init(
         node.vis_localizer_observations_pub_,
-        tracker, base_link_pose_elbrus, node, node.map_frame_);
+        tracker, base_link_pose_cuvslam, node, node.map_frame_);
       localizer_lc_landmarks_vis_helper.Init(
         node.vis_localizer_loop_closure_pub_,
-        tracker, base_link_pose_elbrus, node, node.map_frame_);
+        tracker, base_link_pose_cuvslam, node, node.map_frame_);
     }
-    elbrus_handle = tracker;
+    cuvslam_handle = tracker;
   }
 }
 
@@ -264,59 +330,60 @@ void VisualSlamNode::VisualSlamImpl::Exit()
   localizer_observations_vis_helper.Exit();
   localizer_lc_landmarks_vis_helper.Exit();
 
-  if (elbrus_handle != nullptr) {
-    ELBRUS_DestroyTracker(elbrus_handle);
-    elbrus_handle = nullptr;
-    RCLCPP_INFO(rclcpp::get_logger(logger_name), "Elbrus tracker was destroyed");
+  if (cuvslam_handle != nullptr) {
+    CUVSLAM_DestroyTracker(cuvslam_handle);
+    cuvslam_handle = nullptr;
+    RCLCPP_INFO(rclcpp::get_logger(logger_name), "cuVSLAM tracker was destroyed");
   }
 }
 
-ELBRUS_Configuration VisualSlamNode::VisualSlamImpl::GetConfiguration(
+CUVSLAM_Configuration VisualSlamNode::VisualSlamImpl::GetConfiguration(
   const VisualSlamNode & node,
-  const ELBRUS_Pose & imu_pose_camera)
+  const CUVSLAM_Pose & imu_pose_camera)
 {
-  ELBRUS_Configuration configuration;
-  ELBRUS_InitDefaultConfiguration(&configuration);
-  // Converting gravity force from ROS frame to Elbrus frame
-  const auto & gravitational_force = node.gravitational_force_;
-  const tf2::Vector3 ros_g(gravitational_force[0], gravitational_force[1], gravitational_force[2]);
-  const tf2::Vector3 elbrus_g = elbrus_pose_base_link * ros_g;
-  configuration.g[0] = elbrus_g[0];
-  configuration.g[1] = elbrus_g[1];
-  configuration.g[2] = elbrus_g[2];
+  CUVSLAM_Configuration configuration;
+  CUVSLAM_InitDefaultConfiguration(&configuration);
   configuration.use_motion_model = 1;
-  configuration.sba_mode = ELBRUS_SBA_ON_GPU;
-  configuration.imu_from_left = imu_pose_camera;
   configuration.use_denoising = node.denoise_input_images_ ? 1 : 0;
   configuration.horizontal_stereo_camera = node.rectified_images_ ? 1 : 0;
   configuration.enable_observations_export = node.enable_observations_view_ ? 1 : 0;
-  // If IMU is present, set it to 1
-  configuration.enable_imu_integrator = node.enable_imu_ ? 1 : 0;
   if (node.enable_debug_mode_) {configuration.debug_dump_directory = node.debug_dump_path_.c_str();}
   configuration.enable_landmarks_export = node.enable_landmarks_view_ ? 1 : 0;
-
   configuration.enable_localization_n_mapping = node.enable_localization_n_mapping_ ? 1 : 0;
   configuration.enable_reading_slam_internals = node.enable_slam_visualization_ ? 1 : 0;
   configuration.slam_sync_mode = 0;
+  configuration.enable_imu_fusion = node.enable_imu_fusion_ ? 1 : 0;
+  configuration.max_frame_delta_ms = node.img_jitter_threshold_ms_;
+  configuration.verbosity = node.enable_verbosity_ ? 1 : 0;
+  configuration.planar_constraints = node.force_planar_mode_ ? 1 : 0;
+
+  CUVSLAM_ImuCalibration imu_calibration;
+  imu_calibration.left_from_imu = imu_pose_camera;
+  imu_calibration.gyroscope_noise_density = node.imu_params_.gyroscope_noise_density;
+  imu_calibration.gyroscope_random_walk = node.imu_params_.gyroscope_random_walk;
+  imu_calibration.accelerometer_noise_density = node.imu_params_.accelerometer_noise_density;
+  imu_calibration.accelerometer_random_walk = node.imu_params_.accelerometer_random_walk;
+  imu_calibration.frequency = node.imu_params_.calibration_frequency;
+  configuration.imu_calibration = imu_calibration;
 
   return configuration;
 }
 
-// Helper function to set internal parameters for the elbrus camera structure
-void VisualSlamNode::VisualSlamImpl::SetElbrusCameraPose(
-  ELBRUS_Camera & cam,
-  const ELBRUS_Pose & elbrus_pose) {cam.pose = elbrus_pose;}
+// Helper function to set internal parameters for the cuvslam camera structure
+void VisualSlamNode::VisualSlamImpl::SetcuVSLAMCameraPose(
+  CUVSLAM_Camera & cam,
+  const CUVSLAM_Pose & cuvslam_pose) {cam.pose = cuvslam_pose;}
 
 void VisualSlamNode::VisualSlamImpl::ReadCameraIntrinsics(
   const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_ci,
-  ELBRUS_Camera & elbrus_camera,
+  CUVSLAM_Camera & cuvslam_camera,
   std::array<float, kMaxNumCameraParameters> & intrinsics)
 {
   // Get pinhole
-  elbrus_camera.width = msg_ci->width;
-  elbrus_camera.height = msg_ci->height;
-  elbrus_camera.distortion_model = msg_ci->distortion_model.c_str();
-  elbrus_camera.num_parameters = 4;
+  cuvslam_camera.width = msg_ci->width;
+  cuvslam_camera.height = msg_ci->height;
+  cuvslam_camera.distortion_model = msg_ci->distortion_model.c_str();
+  cuvslam_camera.num_parameters = 4;
 
   // the expected order is cx, cy, fx, fy
   const double * k = msg_ci->k.data();
@@ -346,10 +413,10 @@ void VisualSlamNode::VisualSlamImpl::ReadCameraIntrinsics(
       case (DistortionModel::BROWN): {
           if (Eigen::Vector3d(coefficients).isZero()) {
             // Continue with pinhole parameters
-            elbrus_camera.distortion_model = kPinhole;
-            elbrus_camera.num_parameters = 4;
+            cuvslam_camera.distortion_model = kPinhole;
+            cuvslam_camera.num_parameters = 4;
           } else {
-            elbrus_camera.distortion_model = kBrown5k;
+            cuvslam_camera.distortion_model = kBrown5k;
 
             const float k1 = coefficients[0];
             const float k2 = coefficients[1];
@@ -366,32 +433,57 @@ void VisualSlamNode::VisualSlamImpl::ReadCameraIntrinsics(
             intrinsics[7] = t1;
             intrinsics[8] = t2;
 
-            elbrus_camera.num_parameters = 9;
+            cuvslam_camera.num_parameters = 9;
           }
           break;
         }
       case (DistortionModel::FISHEYE): {
-          elbrus_camera.distortion_model = kFisheye4;
+          cuvslam_camera.distortion_model = kFisheye4;
           // 4-7: fisheye distortion coeffs (k1, k2, k3, k4)
           intrinsics[4] = coefficients[0];
           intrinsics[5] = coefficients[1];
           intrinsics[6] = coefficients[2];
           intrinsics[7] = coefficients[3];
 
-          elbrus_camera.num_parameters = 8;
+          cuvslam_camera.num_parameters = 8;
           break;
         }
       case (DistortionModel::PINHOLE): {
-          elbrus_camera.distortion_model = kPinhole;
-          elbrus_camera.num_parameters = 4;
+          cuvslam_camera.distortion_model = kPinhole;
+          cuvslam_camera.num_parameters = 4;
           break;
         }
       case (DistortionModel::RATIONAL_POLYNOMIAL): {
-          RCLCPP_WARN(
-            rclcpp::get_logger(logger_name),
-            "Distortion Model = rational_polynomial not supported. Continuing with Pinhole model.");
-          elbrus_camera.distortion_model = kPinhole;
-          elbrus_camera.num_parameters = 4;
+          if (Eigen::Vector3d(coefficients).isZero()) {
+            // Continue with pinhole parameters
+            cuvslam_camera.distortion_model = kPinhole;
+            cuvslam_camera.num_parameters = 4;
+          } else {
+            cuvslam_camera.distortion_model = kPolynomial;
+
+            const float k1 = coefficients[0];
+            const float k2 = coefficients[1];
+            const float t1 = coefficients[2];
+            const float t2 = coefficients[3];
+            const float k3 = coefficients[4];
+            const float k4 = coefficients[5];
+            const float k5 = coefficients[6];
+            const float k6 = coefficients[7];
+
+            // 4-5 and 8-11: radial distortion coeffs (k1, k2, k3)
+            intrinsics[4] = k1;
+            intrinsics[5] = k2;
+            intrinsics[8] = k3;
+            intrinsics[9] = k4;
+            intrinsics[10] = k5;
+            intrinsics[11] = k6;
+
+            // 6-7: tangential distortion coeffs (p1, p2)
+            intrinsics[6] = t1;
+            intrinsics[7] = t2;
+
+            cuvslam_camera.num_parameters = 12;
+          }
           break;
         }
       default: {
@@ -402,26 +494,26 @@ void VisualSlamNode::VisualSlamImpl::ReadCameraIntrinsics(
   }
 }
 
-// Helper function to create ELBRUS_Image from cv::Mat
-ELBRUS_Image VisualSlamNode::VisualSlamImpl::ToElbrusImage(
+// Helper function to create CUVSLAM_Image from cv::Mat
+CUVSLAM_Image VisualSlamNode::VisualSlamImpl::TocuVSLAMImage(
   int32_t camera_index,
   const cv::Mat & image,
   const int64_t & acqtime_ns)
 {
-  ELBRUS_Image elbrus_image;
-  elbrus_image.timestamp_ns = acqtime_ns;
-  elbrus_image.pixels = image.ptr();
-  elbrus_image.width = image.cols;
-  elbrus_image.height = image.rows;
-  elbrus_image.camera_index = camera_index;
-  return elbrus_image;
+  CUVSLAM_Image cuvslam_image;
+  cuvslam_image.timestamp_ns = acqtime_ns;
+  cuvslam_image.pixels = image.ptr();
+  cuvslam_image.width = image.cols;
+  cuvslam_image.height = image.rows;
+  cuvslam_image.camera_index = camera_index;
+  return cuvslam_image;
 }
 
-// Helper function to pass IMU data to Elbrus
-ELBRUS_ImuMeasurement VisualSlamNode::VisualSlamImpl::ToElbrusImuMeasurement(
+// Helper function to pass IMU data to cuVSLAM
+CUVSLAM_ImuMeasurement VisualSlamNode::VisualSlamImpl::TocuVSLAMImuMeasurement(
   const sensor_msgs::msg::Imu::ConstSharedPtr & msg_imu)
 {
-  ELBRUS_ImuMeasurement measurement;
+  CUVSLAM_ImuMeasurement measurement;
 
   const auto & in_lin_acc = msg_imu->linear_acceleration;
   const auto & in_ang_vel = msg_imu->angular_velocity;
@@ -429,18 +521,18 @@ ELBRUS_ImuMeasurement VisualSlamNode::VisualSlamImpl::ToElbrusImuMeasurement(
   const tf2::Vector3 ros_lin_acc(in_lin_acc.x, in_lin_acc.y, in_lin_acc.z);
   const tf2::Vector3 ros_ang_vel(in_ang_vel.x, in_ang_vel.y, in_ang_vel.z);
 
-  // convert from ros frame to elbrus
-  const tf2::Vector3 elbrus_lin_acc = elbrus_pose_base_link * ros_lin_acc;
-  const tf2::Vector3 elbrus_ang_vel = elbrus_pose_base_link * ros_ang_vel;
+  // convert from ros frame to cuvslam
+  const tf2::Vector3 cuvslam_lin_acc = cuvslam_pose_base_link * ros_lin_acc;
+  const tf2::Vector3 cuvslam_ang_vel = cuvslam_pose_base_link * ros_ang_vel;
 
   // Set linear accelerations
-  measurement.linear_accelerations[0] = elbrus_lin_acc.x();
-  measurement.linear_accelerations[1] = elbrus_lin_acc.y();
-  measurement.linear_accelerations[2] = elbrus_lin_acc.z();
+  measurement.linear_accelerations[0] = cuvslam_lin_acc.x();
+  measurement.linear_accelerations[1] = cuvslam_lin_acc.y();
+  measurement.linear_accelerations[2] = cuvslam_lin_acc.z();
   // Set angular velocity
-  measurement.angular_velocities[0] = elbrus_ang_vel.x();
-  measurement.angular_velocities[1] = elbrus_ang_vel.y();
-  measurement.angular_velocities[2] = elbrus_ang_vel.z();
+  measurement.angular_velocities[0] = cuvslam_ang_vel.x();
+  measurement.angular_velocities[1] = cuvslam_ang_vel.y();
+  measurement.angular_velocities[2] = cuvslam_ang_vel.z();
 
   return measurement;
 }
@@ -594,16 +686,17 @@ void VisualSlamNode::VisualSlamImpl::PublishGravity(
   const std::string & frame_id,
   const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher)
 {
-  ELBRUS_Gravity gravity_in_elbrus;
-  const ELBRUS_Status status = ELBRUS_GetLastGravity(elbrus_handle, &gravity_in_elbrus);
+  CUVSLAM_Gravity gravity_in_cuvslam;
 
-  const tf2::Vector3 g_elbrus(gravity_in_elbrus.x, gravity_in_elbrus.y, gravity_in_elbrus.z);
-  const tf2::Vector3 g_base_link = base_link_pose_elbrus * g_elbrus;
-
-  if (status != ELBRUS_SUCCESS) {
-    RCLCPP_WARN(rclcpp::get_logger(logger_name), "Can't get gravity vector");
+  if (CUVSLAM_SUCCESS != CUVSLAM_GetLastGravity(cuvslam_handle, &gravity_in_cuvslam)) {
+    // Don't publish anything if cuvslam hasn't calculated gravity yet. After the start
+    // or loss of visual tracking, cuvslam needs some time to align optical and imu sensors.
+    // Only after that is it able to calculate the gravity vector.
     return;
   }
+
+  const tf2::Vector3 g_cuvslam(gravity_in_cuvslam.x, gravity_in_cuvslam.y, gravity_in_cuvslam.z);
+  const tf2::Vector3 g_base_link = base_link_pose_cuvslam * g_cuvslam;
 
   visualization_msgs::msg::Marker m;
   m.header.frame_id = frame_id;
@@ -639,6 +732,12 @@ void VisualSlamNode::VisualSlamImpl::PublishGravity(
   m.points[1] = p2;
 
   publisher->publish(std::move(m));
+}
+
+double NanoToMilliSeconds(int64_t nano_sec) {return nano_sec / kNanoSecInMilliSec;}
+bool VisualSlamNode::VisualSlamImpl::IsJitterAboveThreshold(double threshold)
+{
+  return (NanoToMilliSeconds(delta_ts.getData()[0]) - threshold) > 1.0f;
 }
 
 }  // namespace visual_slam

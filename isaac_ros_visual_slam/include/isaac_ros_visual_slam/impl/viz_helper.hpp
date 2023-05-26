@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <string>
 #include <thread>
 
-#include "elbrus.h"  // NOLINT - include .h without directory
+#include "cuvslam.h"  // NOLINT - include .h without directory
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Transform.h"
 
@@ -40,8 +40,8 @@ public:
   virtual ~VisHelper() {}
 
   void Init(
-    ELBRUS_TrackerHandle elbrus_handle,
-    const tf2::Transform & base_link_pose_elbrus,
+    CUVSLAM_TrackerHandle cuvslam_handle,
+    const tf2::Transform & base_link_pose_cuvslam,
     const rclcpp::Node & node,
     const std::string & frame_id
   );
@@ -52,8 +52,8 @@ protected:
   virtual void Reset() = 0;
 
 protected:
-  ELBRUS_TrackerHandle elbrus_handle_ = nullptr;
-  tf2::Transform base_link_pose_elbrus_;
+  CUVSLAM_TrackerHandle cuvslam_handle_ = nullptr;
+  tf2::Transform base_link_pose_cuvslam_;
   const rclcpp::Node * node_ = nullptr;
   std::string frame_id_;
 

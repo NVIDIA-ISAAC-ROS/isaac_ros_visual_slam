@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,35 +15,35 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include "isaac_ros_visual_slam/impl/elbrus_ros_convertion.hpp"
+#include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
 
 namespace isaac_ros
 {
 namespace visual_slam
 {
 
-// Helper function that converts transform into ELBRUS_Pose
-ELBRUS_Pose ToElbrusPose(const tf2::Transform & tf_mat)
+// Helper function that converts transform into CUVSLAM_Pose
+CUVSLAM_Pose TocuVSLAMPose(const tf2::Transform & tf_mat)
 {
-  ELBRUS_Pose elbrusPose;
-  // tf2::Matrix3x3 is row major, but elbrus is column major
+  CUVSLAM_Pose cuvslamPose;
+  // tf2::Matrix3x3 is row major, but cuvslam is column major
   const tf2::Matrix3x3 rotation(tf_mat.getRotation());
   const int32_t kRotationMatCol = 3;
   const int32_t kRotationMatRow = 3;
-  int elbrus_idx = 0;
+  int cuvslam_idx = 0;
   for (int col_idx = 0; col_idx < kRotationMatCol; ++col_idx) {
     const tf2::Vector3 & rot_col = rotation.getColumn(col_idx);
     for (int row_idx = 0; row_idx < kRotationMatRow; ++row_idx) {
-      elbrusPose.r[elbrus_idx] = rot_col[row_idx];
-      elbrus_idx++;
+      cuvslamPose.r[cuvslam_idx] = rot_col[row_idx];
+      cuvslam_idx++;
     }
   }
 
   const tf2::Vector3 & translation = tf_mat.getOrigin();
-  elbrusPose.t[0] = translation.x();
-  elbrusPose.t[1] = translation.y();
-  elbrusPose.t[2] = translation.z();
-  return elbrusPose;
+  cuvslamPose.t[0] = translation.x();
+  cuvslamPose.t[1] = translation.y();
+  cuvslamPose.t[2] = translation.z();
+  return cuvslamPose;
 }
 
 // Helper funtion to change basis from frame source to frame target
@@ -57,14 +57,14 @@ tf2::Transform ChangeBasis(
   return target_pose_source * source_pose_source * target_pose_source.inverse();
 }
 
-// Helper function to convert elbrus pose estimate to tf2::Transform
-tf2::Transform FromElbrusPose(
-  const ELBRUS_Pose & elbrus_pose)
+// Helper function to convert cuvslam pose estimate to tf2::Transform
+tf2::Transform FromcuVSLAMPose(
+  const CUVSLAM_Pose & cuvslam_pose)
 {
-  const auto & r = elbrus_pose.r;
-  // tf2::Matrix3x3 is row major and Elbrus rotation mat is column major.
+  const auto & r = cuvslam_pose.r;
+  // tf2::Matrix3x3 is row major and cuVSLAM rotation mat is column major.
   const tf2::Matrix3x3 rotation(r[0], r[3], r[6], r[1], r[4], r[7], r[2], r[5], r[8]);
-  const tf2::Vector3 translation(elbrus_pose.t[0], elbrus_pose.t[1], elbrus_pose.t[2]);
+  const tf2::Vector3 translation(cuvslam_pose.t[0], cuvslam_pose.t[1], cuvslam_pose.t[2]);
 
   return tf2::Transform(rotation, translation);
 }

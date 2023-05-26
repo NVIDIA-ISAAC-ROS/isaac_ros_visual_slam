@@ -6,7 +6,7 @@
 
 This tutorial walks you through setting up [Isaac ROS Visual SLAM](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam) with a [Realsense camera](https://www.intel.com/content/www/us/en/architecture-and-technology/realsense-overview.html).
 
-> **Note**: The [launch file](../isaac_ros_visual_slam/launch/isaac_ros_visual_slam_realsense.launch.py) provided in this tutorial is designed for a RealSense camera with integrated IMU. If you want to run this tutorial with a RealSense camera without an IMU (like RealSense D435), then change `enable_imu` param in the launch file to `False`.
+> **Note**: The [launch file](../isaac_ros_visual_slam/launch/isaac_ros_visual_slam_realsense.launch.py) provided in this tutorial is designed for a RealSense camera with integrated IMU. If you want to run this tutorial with a RealSense camera without an IMU (like RealSense D435), then change `enable_imu_fusion` param in the launch file to `False`.
 <!-- Split blockquote -->
 > **Note**: This tutorial requires a compatible RealSense camera from the list available [here](https://github.com/NVIDIA-ISAAC-ROS/.github/blob/main/profile/realsense-setup.md#camera-compatibility).
 
@@ -16,7 +16,9 @@ This tutorial walks you through setting up [Isaac ROS Visual SLAM](https://githu
 
 2. Complete the [Quickstart section](../README.md#quickstart) in the main README.
 
-3. \[Terminal 1\] Run `realsense-camera` node and `visual_slam` node
+3. Follow this [page](https://github.com/ethz-asl/kalibr/wiki/IMU-Noise-Model#how-to-obtain-the-parameters-for-your-imu) to obtain [IMU Noise Model](https://github.com/ethz-asl/kalibr/wiki/IMU-Noise-Model) params. Params can be obtained either through datasheet for the IMU or from a ROS package like [this](https://github.com/CruxDevStuff/allan_ros2).
+
+4. \[Terminal 1\] Run `realsense-camera` node and `visual_slam` node
 
    Make sure you have your RealSense camera attached to the system, and then start the Isaac ROS container.
 
@@ -31,7 +33,7 @@ This tutorial walks you through setting up [Isaac ROS Visual SLAM](https://githu
     >   ./scripts/run_dev.sh ${ISAAC_ROS_WS}
     > ```
 
-4. \[Terminal 1\] Inside the container, build and source the workspace:  
+5. \[Terminal 1\] Inside the container, build and source the workspace:  
 
     ```bash
     cd /workspaces/isaac_ros-dev && \
@@ -39,13 +41,13 @@ This tutorial walks you through setting up [Isaac ROS Visual SLAM](https://githu
       source install/setup.bash
     ```
 
-5. \[Terminal 1\] Run the launch file, which launches the example and wait for 5 seconds:
+6. \[Terminal 1\] Run the launch file, which launches the example and wait for 5 seconds:
 
     ```bash
     ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam_realsense.launch.py
     ```
 
-6. \[Terminal 2\] Attach a second terminal to check the operation.
+7. \[Terminal 2\] Attach a second terminal to check the operation.
 
     Attach another terminal to the running container for issuing other ROS2 commands.
 

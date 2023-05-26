@@ -23,6 +23,3 @@
 **/resources/**/*.db3 filter=lfs diff=lfs merge=lfs -text
 **/resources/**/*.yaml filter=lfs diff=lfs merge=lfs -text
 isaac_ros_visual_slam/test/test_cases/rosbags/** filter=lfs diff=lfs merge=lfs -text
-
-# Elbrus Library
-isaac_ros_visual_slam/elbrus/** filter=lfs diff=lfs merge=lfs -text

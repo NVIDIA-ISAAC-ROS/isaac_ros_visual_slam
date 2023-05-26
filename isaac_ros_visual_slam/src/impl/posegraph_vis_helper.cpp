@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <string>
 #include <utility>
 
-#include "isaac_ros_visual_slam/impl/elbrus_ros_convertion.hpp"
+#include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
@@ -32,7 +32,7 @@ namespace visual_slam
 
 // PoseGraphVisHelper
 PoseGraphVisHelper::PoseGraphVisHelper(
-  ELBRUS_DataLayer layer,
+  CUVSLAM_DataLayer layer,
   uint32_t max_items_count,
   uint32_t period_ms)
 : layer_(layer), max_items_count_(max_items_count), period_ms_(period_ms)
@@ -48,8 +48,8 @@ void PoseGraphVisHelper::Init(
   const rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr publisher_nodes,
   const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges,
   const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges2,
-  ELBRUS_TrackerHandle elbrus_handle,
-  const tf2::Transform & base_link_pose_elbrus,
+  CUVSLAM_TrackerHandle cuvslam_handle,
+  const tf2::Transform & base_link_pose_cuvslam,
   const rclcpp::Node & node,
   const std::string & frame_id)
 {
@@ -57,13 +57,13 @@ void PoseGraphVisHelper::Init(
   publisher_edges_ = publisher_edges;
   publisher_edges2_ = publisher_edges2;
 
-  VisHelper::Init(elbrus_handle, base_link_pose_elbrus, node, frame_id);
+  VisHelper::Init(cuvslam_handle, base_link_pose_cuvslam, node, frame_id);
   thread_ = std::thread{&PoseGraphVisHelper::Run, this};
 }
 
 void PoseGraphVisHelper::Reset()
 {
-  ELBRUS_DisableReadingDataLayer(elbrus_handle_, layer_);
+  CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, layer_);
   publisher_nodes_.reset();
   publisher_edges_.reset();
   publisher_edges2_.reset();
@@ -72,12 +72,12 @@ void PoseGraphVisHelper::Reset()
 void PoseGraphVisHelper::Run()
 {
   std::unique_lock<std::mutex> locker(mutex_);
-  // elbrus_handle_ will be null after Exit() was called
-  while (elbrus_handle_) {
+  // cuvslam_handle_ will be null after Exit() was called
+  while (cuvslam_handle_) {
     cond_var_.wait_for(
       locker,
       std::chrono::milliseconds(period_ms_));
-    if (!elbrus_handle_) {break;}
+    if (!cuvslam_handle_) {break;}
     if (!rclcpp::ok()) {break;}
 
     bool has_subnumber_nodes = HasSubscribers(*node_, publisher_nodes_);
@@ -85,22 +85,25 @@ void PoseGraphVisHelper::Run()
     bool has_subnumber_edges2 = HasSubscribers(*node_, publisher_edges2_);
     if (!has_subnumber_nodes && !has_subnumber_edges && !!has_subnumber_edges2) {
       // no subcribers so disable reading
-      ELBRUS_DisableReadingDataLayer(elbrus_handle_, layer_);
+      CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, layer_);
       continue;
     }
 
     // enable reading
-    if (ELBRUS_EnableReadingDataLayer(elbrus_handle_, layer_, max_items_count_) != ELBRUS_SUCCESS) {
+    if (CUVSLAM_EnableReadingDataLayer(
+        cuvslam_handle_, layer_,
+        max_items_count_) != CUVSLAM_SUCCESS)
+    {
       continue;
     }
     // read data
-    ELBRUS_PoseGraphRef pose_graph;
-    if (ELBRUS_StartReadingPoseGraph(elbrus_handle_, layer_, &pose_graph) != ELBRUS_SUCCESS) {
+    CUVSLAM_PoseGraphRef pose_graph;
+    if (CUVSLAM_StartReadingPoseGraph(cuvslam_handle_, layer_, &pose_graph) != CUVSLAM_SUCCESS) {
       continue;
     }
     if (last_timestamp_ns_ == pose_graph.timestamp_ns) {
       // Don't need to publish now
-      ELBRUS_FinishReadingPoseGraph(elbrus_handle_, layer_);
+      CUVSLAM_FinishReadingPoseGraph(cuvslam_handle_, layer_);
       continue;
     }
     last_timestamp_ns_ = pose_graph.timestamp_ns;
@@ -115,12 +118,12 @@ void PoseGraphVisHelper::Run()
       msg->poses.resize(pose_graph.num_nodes);
 
       for (uint32_t i = 0; i < pose_graph.num_nodes; i++) {
-        const ELBRUS_Pose & elbrus_pose = pose_graph.nodes[i].node_pose;
+        const CUVSLAM_Pose & cuvslam_pose = pose_graph.nodes[i].node_pose;
 
         // Change of basis vectors for pose
         const tf2::Transform ros_pos{ChangeBasis(
-            base_link_pose_elbrus_,
-            FromElbrusPose(elbrus_pose))};
+            base_link_pose_cuvslam_,
+            FromcuVSLAMPose(cuvslam_pose))};
 
         geometry_msgs::msg::Pose dst;
         tf2::toMsg(ros_pos, dst);
@@ -134,7 +137,7 @@ void PoseGraphVisHelper::Run()
     std::map<uint64_t, int> nodes_index;
     if (has_subnumber_edges || has_subnumber_edges2) {
       for (uint32_t i = 0; i < pose_graph.num_nodes; i++) {
-        const ELBRUS_PoseGraphNode & node = pose_graph.nodes[i];
+        const CUVSLAM_PoseGraphNode & node = pose_graph.nodes[i];
         nodes_index[node.id] = i;
       }
     }
@@ -164,19 +167,19 @@ void PoseGraphVisHelper::Run()
       marker_edges.points.resize(pose_graph.num_edges * 2);
 
       for (uint32_t i = 0; i < pose_graph.num_edges; i++) {
-        const ELBRUS_PoseGraphEdge & edge = pose_graph.edges[i];
+        const CUVSLAM_PoseGraphEdge & edge = pose_graph.edges[i];
         auto it_from = nodes_index.find(edge.node_from);
         auto it_to = nodes_index.find(edge.node_to);
         if (it_from == nodes_index.end() || it_to == nodes_index.end() ) {
           continue;
         }
 
-        const ELBRUS_Pose & node_from = pose_graph.nodes[it_from->second].node_pose;
-        const ELBRUS_Pose & node_to = pose_graph.nodes[it_to->second].node_pose;
+        const CUVSLAM_Pose & node_from = pose_graph.nodes[it_from->second].node_pose;
+        const CUVSLAM_Pose & node_to = pose_graph.nodes[it_to->second].node_pose;
         const tf2::Transform ros_from{ChangeBasis(
-            base_link_pose_elbrus_,
-            FromElbrusPose(node_from))};
-        const tf2::Transform ros_to{ChangeBasis(base_link_pose_elbrus_, FromElbrusPose(node_to))};
+            base_link_pose_cuvslam_,
+            FromcuVSLAMPose(node_from))};
+        const tf2::Transform ros_to{ChangeBasis(base_link_pose_cuvslam_, FromcuVSLAMPose(node_to))};
         tf2::Vector3 zero(0, 0, 0);
         tf2::Vector3 p1 = ros_from * zero;
         tf2::Vector3 p2 = ros_to * zero;
@@ -222,16 +225,16 @@ void PoseGraphVisHelper::Run()
       marker_edges_transform.points.resize(pose_graph.num_edges * 2);
 
       for (uint32_t i = 0; i < pose_graph.num_edges; i++) {
-        const ELBRUS_PoseGraphEdge & edge = pose_graph.edges[i];
+        const CUVSLAM_PoseGraphEdge & edge = pose_graph.edges[i];
         auto it_from = nodes_index.find(edge.node_from);
         if (it_from == nodes_index.end()) {
           continue;
         }
 
-        const ELBRUS_Pose & node_from = pose_graph.nodes[it_from->second].node_pose;
+        const CUVSLAM_Pose & node_from = pose_graph.nodes[it_from->second].node_pose;
         const tf2::Transform ros_from{ChangeBasis(
-            base_link_pose_elbrus_,
-            FromElbrusPose(node_from))};
+            base_link_pose_cuvslam_,
+            FromcuVSLAMPose(node_from))};
         tf2::Vector3 zero(0, 0, 0);
         tf2::Vector3 p1 = ros_from * zero;
 
@@ -241,8 +244,8 @@ void PoseGraphVisHelper::Run()
         pp1.z = p1[2];
 
         const tf2::Transform ros_transform{ChangeBasis(
-            base_link_pose_elbrus_,
-            FromElbrusPose(edge.transform))};
+            base_link_pose_cuvslam_,
+            FromcuVSLAMPose(edge.transform))};
         tf2::Vector3 p3 = ros_transform * zero;
         p3 = ros_from * p3;
         geometry_msgs::msg::Point pp3;
@@ -256,7 +259,7 @@ void PoseGraphVisHelper::Run()
       // Publishing
       publisher_edges2_->publish(marker_edges_transform);
     }
-    ELBRUS_FinishReadingPoseGraph(elbrus_handle_, layer_);
+    CUVSLAM_FinishReadingPoseGraph(cuvslam_handle_, layer_);
   }
 }
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include <memory>
 #include <string>
 
-#include "elbrus.h"  // NOLINT - include .h without directory
+#include "cuvslam.h"  // NOLINT - include .h without directory
 #include "cv_bridge/cv_bridge.h"
 #include "isaac_ros_visual_slam/impl/landmarks_vis_helper.hpp"
 #include "isaac_ros_visual_slam/impl/localizer_vis_helper.hpp"
@@ -45,10 +45,12 @@ namespace visual_slam
 {
 
 constexpr int32_t kNumCameras = 2;
-constexpr int32_t kMaxNumCameraParameters = 9;
+constexpr int32_t kMaxNumCameraParameters = 12;
 
 constexpr int32_t LEFT_CAMERA_IDX = 0;
 constexpr int32_t RIGHT_CAMERA_IDX = 1;
+
+double NanoToMilliSeconds(int64_t nano_sec);
 
 struct VisualSlamNode::VisualSlamImpl
 {
@@ -62,22 +64,22 @@ struct VisualSlamNode::VisualSlamImpl
     const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_right_ci);
   void Exit();
 
-  ELBRUS_Configuration GetConfiguration(
+  CUVSLAM_Configuration GetConfiguration(
     const VisualSlamNode & node,
-    const ELBRUS_Pose & imu_from_camera);
+    const CUVSLAM_Pose & imu_from_camera);
 
-  void SetElbrusCameraPose(ELBRUS_Camera & cam, const ELBRUS_Pose & elbrus_pose);
+  void SetcuVSLAMCameraPose(CUVSLAM_Camera & cam, const CUVSLAM_Pose & cuvslam_pose);
 
   void ReadCameraIntrinsics(
     const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_ci,
-    ELBRUS_Camera & elbrus_camera,
+    CUVSLAM_Camera & cuvslam_camera,
     std::array<float, kMaxNumCameraParameters> & intrinsics);
 
-  ELBRUS_Image ToElbrusImage(
+  CUVSLAM_Image TocuVSLAMImage(
     int32_t camera_index, const cv::Mat & image,
     const int64_t & acqtime_ns);
 
-  ELBRUS_ImuMeasurement ToElbrusImuMeasurement(
+  CUVSLAM_ImuMeasurement TocuVSLAMImuMeasurement(
     const sensor_msgs::msg::Imu::ConstSharedPtr & msg_imu);
 
   void PublishFrameTransform(
@@ -104,10 +106,12 @@ struct VisualSlamNode::VisualSlamImpl
   bool IsInitialized();
 
   static void LocalizeInExistDbResponse(
-    void * context, ELBRUS_Status status,
-    const ELBRUS_Pose * pose_in_db);
+    void * context, CUVSLAM_Status status,
+    const CUVSLAM_Pose * pose_in_db);
 
-  static void SaveToSlamDbResponse(void * context, ELBRUS_Status status);
+  static void SaveToSlamDbResponse(void * context, CUVSLAM_Status status);
+
+  bool IsJitterAboveThreshold(double threshold);
 
   // Name of the logger that will used to retrieve the logger.
   const std::string logger_name;
@@ -125,24 +129,24 @@ struct VisualSlamNode::VisualSlamImpl
   using Synchronizer = message_filters::Synchronizer<ExactTime>;
   std::shared_ptr<Synchronizer> sync;
 
-  // Elbrus handle to call Elbrus API.
-  ELBRUS_TrackerHandle elbrus_handle = nullptr;
+  // cuVSLAM handle to call cuVSLAM API.
+  CUVSLAM_TrackerHandle cuvslam_handle = nullptr;
 
-  // Define number of cameras for Elbrus. 2 for stereo camera.
-  std::array<ELBRUS_Camera, kNumCameras> elbrus_cameras;
+  // Define number of cameras for cuVSLAM. 2 for stereo camera.
+  std::array<CUVSLAM_Camera, kNumCameras> cuvslam_cameras;
 
   // Define camera parameters for stereo camera.
-  std::array<float, kMaxNumCameraParameters> left_intrinsics, right_intrinsics;
-
+  std::array<float, kMaxNumCameraParameters> left_intrinsics;
+  std::array<float, kMaxNumCameraParameters> right_intrinsics;
   // Transformation converting from
   // ROS Frame    (x-forward, y-left, z-up) to
-  // Elbrus Frame (x-right, y-up, z-backward)
-  const tf2::Transform elbrus_pose_base_link;
+  // cuVSLAM Frame (x-right, y-up, z-backward)
+  const tf2::Transform cuvslam_pose_base_link;
 
   // Transformation converting from
-  // Elbrus Frame (x-right, y-up, z-backward) to
+  // cuVSLAM Frame (x-right, y-up, z-backward) to
   // ROS Frame    (x-forward, y-left, z-up)
-  const tf2::Transform base_link_pose_elbrus;
+  const tf2::Transform base_link_pose_cuvslam;
 
   // Start pose of visual odometry
   tf2::Transform start_odom_pose = tf2::Transform::getIdentity();
@@ -188,7 +192,13 @@ struct VisualSlamNode::VisualSlamImpl
   // Container to calulate execution time statictics.
   limited_vector<double> track_execution_times;
 
-  // Asynchronous response for ELBRUS_LocalizeInExistDb()
+  // Container to store delta between camera frames timestamp.
+  limited_vector<double> delta_ts;
+
+  // Last timestamp of the image message in nanoseconds
+  int64_t last_img_ts;
+
+  // Asynchronous response for CUVSLAM_LocalizeInExistDb()
   struct LocalizeInExistDbContext
   {
     VisualSlamNode * node = nullptr;
@@ -196,7 +206,7 @@ struct VisualSlamNode::VisualSlamImpl
   };
   std::list<LocalizeInExistDbContext> localize_in_exist_db_contexts;
 
-  // Asynchronous response for ELBRUS_SaveToSlamDb()
+  // Asynchronous response for CUVSLAM_SaveToSlamDb()
   struct SaveToSlamDbContext
   {
     VisualSlamNode * node = nullptr;

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "isaac_ros_visual_slam/impl/elbrus_ros_convertion.hpp"
+#include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/localizer_vis_helper.hpp"
 
@@ -44,20 +44,20 @@ LocalizerVisHelper::~LocalizerVisHelper()
 
 void LocalizerVisHelper::Init(
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_localizer_probes,
-  ELBRUS_TrackerHandle elbrus_handle,
-  const tf2::Transform & base_link_pose_elbrus,
+  CUVSLAM_TrackerHandle cuvslam_handle,
+  const tf2::Transform & base_link_pose_cuvslam,
   const rclcpp::Node & node,
   const std::string & frame_id)
 {
   publisher_localizer_probes_ = publisher_localizer_probes;
 
-  VisHelper::Init(elbrus_handle, base_link_pose_elbrus, node, frame_id);
+  VisHelper::Init(cuvslam_handle, base_link_pose_cuvslam, node, frame_id);
   thread_ = std::thread{&LocalizerVisHelper::Run, this};
 }
 
 void LocalizerVisHelper::Reset()
 {
-  ELBRUS_DisableReadingDataLayer(elbrus_handle_, LL_LOCALIZER_PROBES);
+  CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, LL_LOCALIZER_PROBES);
   publisher_localizer_probes_.reset();
   localization_finished_ = false;
   have_result_pose_ = false;
@@ -77,8 +77,8 @@ void LocalizerVisHelper::SetResult(bool succesed, const tf2::Transform & pose)
 void LocalizerVisHelper::Run()
 {
   std::unique_lock<std::mutex> locker(mutex_);
-  // elbrus_handle_ will be null after Exit() was called
-  while (elbrus_handle_) {
+  // cuvslam_handle_ will be null after Exit() was called
+  while (cuvslam_handle_) {
     if (reset_required_) {
       // reset all data
       visualization_msgs::msg::MarkerArray markers;
@@ -91,25 +91,25 @@ void LocalizerVisHelper::Run()
     cond_var_.wait_for(
       locker,
       std::chrono::milliseconds(period_ms_));
-    if (!elbrus_handle_) {break;}
+    if (!cuvslam_handle_) {break;}
     if (!rclcpp::ok()) {break;}
     if (!HasSubscribers(*node_, publisher_localizer_probes_)) {
       // no subcribers so disable reading
-      ELBRUS_DisableReadingDataLayer(elbrus_handle_, LL_LOCALIZER_PROBES);
+      CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, LL_LOCALIZER_PROBES);
       continue;
     }
     // enable reading
-    if (ELBRUS_EnableReadingDataLayer(
-        elbrus_handle_, LL_LOCALIZER_PROBES,
-        max_items_count_) != ELBRUS_SUCCESS)
+    if (CUVSLAM_EnableReadingDataLayer(
+        cuvslam_handle_, LL_LOCALIZER_PROBES,
+        max_items_count_) != CUVSLAM_SUCCESS)
     {
       continue;
     }
     // read data
-    ELBRUS_LocalizerProbesRef localizer_probes;
-    if (ELBRUS_StartReadingLocalizerProbes(
-        elbrus_handle_, LL_LOCALIZER_PROBES,
-        &localizer_probes) != ELBRUS_SUCCESS)
+    CUVSLAM_LocalizerProbesRef localizer_probes;
+    if (CUVSLAM_StartReadingLocalizerProbes(
+        cuvslam_handle_, LL_LOCALIZER_PROBES,
+        &localizer_probes) != CUVSLAM_SUCCESS)
     {
       continue;
     }
@@ -117,7 +117,7 @@ void LocalizerVisHelper::Run()
       last_num_probes_ == localizer_probes.num_probes)
     {
       // don't need to publish now
-      ELBRUS_FinishReadingLocalizerProbes(elbrus_handle_, LL_LOCALIZER_PROBES);
+      CUVSLAM_FinishReadingLocalizerProbes(cuvslam_handle_, LL_LOCALIZER_PROBES);
       continue;
     }
 
@@ -172,16 +172,16 @@ void LocalizerVisHelper::Run()
           marker_probes.action = visualization_msgs::msg::Marker::DELETE;
         }
         for (uint32_t i = 0; i < localizer_probes.num_probes; i++) {
-          const ELBRUS_LocalizerProbe & probe = localizer_probes.probes[i];
+          const CUVSLAM_LocalizerProbe & probe = localizer_probes.probes[i];
 
-          tf2::Transform guess_pose__elbrus = FromElbrusPose(probe.guess_pose);
-          tf2::Vector3 origin = guess_pose__elbrus * tf2::Vector3(
+          tf2::Transform guess_pose__cuvslam = FromcuVSLAMPose(probe.guess_pose);
+          tf2::Vector3 origin = guess_pose__cuvslam * tf2::Vector3(
             0, 0,
             -localizer_probes.size * 0.05);
-          guess_pose__elbrus.setOrigin(origin);
+          guess_pose__cuvslam.setOrigin(origin);
           const tf2::Transform guess_pose__ros{ChangeBasis(
-              base_link_pose_elbrus_,
-              guess_pose__elbrus)};
+              base_link_pose_cuvslam_,
+              guess_pose__cuvslam)};
 
           tf2::Vector3 p1 = guess_pose__ros * zero;
           tf2::Vector3 p2 = guess_pose__ros * (one * 0.4);
@@ -266,7 +266,7 @@ void LocalizerVisHelper::Run()
     } else {
     }
 
-    ELBRUS_FinishReadingLocalizerProbes(elbrus_handle_, LL_LOCALIZER_PROBES);
+    CUVSLAM_FinishReadingLocalizerProbes(cuvslam_handle_, LL_LOCALIZER_PROBES);
   }
 }
 
