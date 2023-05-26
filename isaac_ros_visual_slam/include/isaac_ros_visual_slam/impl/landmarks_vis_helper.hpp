@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ public:
   };
 
   LandmarksVisHelper(
-    ELBRUS_DataLayer layer,
+    CUVSLAM_DataLayer layer,
     uint32_t max_landmarks_count = 1024,
     ColorMode color_mode = CM_RGB_MODE, uint32_t period_ms = 500);
 
@@ -51,8 +51,8 @@ public:
 
   void Init(
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher,
-    ELBRUS_TrackerHandle elbrus_handle,
-    const tf2::Transform & base_link_pose_elbrus,
+    CUVSLAM_TrackerHandle cuvslam_handle,
+    const tf2::Transform & base_link_pose_cuvslam,
     const rclcpp::Node & node,
     const std::string & frame_id
   );
@@ -62,7 +62,7 @@ public:
   void Run();
 
 protected:
-  ELBRUS_DataLayer layer_ = LL_OBSERVATIONS;
+  CUVSLAM_DataLayer layer_ = LL_OBSERVATIONS;
   uint32_t max_landmarks_count_ = 1024;
 
   uint64_t last_timestamp_ns_ = 0;

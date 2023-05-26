@@ -41,7 +41,6 @@ def generate_test_description():
         namespace=IsaacROSVisualSlamTest.generate_namespace(
             _TEST_CASE_NAMESPACE),
         parameters=[{
-            'enable_rectified_pose': True,
             'denoise_input_images': False,
         }]
     )

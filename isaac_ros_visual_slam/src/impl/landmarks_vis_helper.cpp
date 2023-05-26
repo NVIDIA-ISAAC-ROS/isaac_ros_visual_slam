@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ namespace visual_slam
 {
 
 LandmarksVisHelper::LandmarksVisHelper(
-  ELBRUS_DataLayer layer,
+  CUVSLAM_DataLayer layer,
   uint32_t max_landmarks_count,
   LandmarksVisHelper::ColorMode color_mode,
   uint32_t period_ms)
@@ -41,52 +41,52 @@ LandmarksVisHelper::~LandmarksVisHelper() {Exit();}
 
 void LandmarksVisHelper::Init(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher,
-  ELBRUS_TrackerHandle elbrus_handle,
-  const tf2::Transform & base_link_pose_elbrus,
+  CUVSLAM_TrackerHandle cuvslam_handle,
+  const tf2::Transform & base_link_pose_cuvslam,
   const rclcpp::Node & node,
   const std::string & frame_id
 )
 {
   publisher_ = publisher;
-  VisHelper::Init(elbrus_handle, base_link_pose_elbrus, node, frame_id);
+  VisHelper::Init(cuvslam_handle, base_link_pose_cuvslam, node, frame_id);
   thread_ = std::thread{&LandmarksVisHelper::Run, this};
 }
 
 void LandmarksVisHelper::Reset()
 {
-  ELBRUS_DisableReadingDataLayer(elbrus_handle_, layer_);
+  CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, layer_);
   publisher_.reset();
 }
 
 void LandmarksVisHelper::Run()
 {
   std::unique_lock<std::mutex> locker(mutex_);
-  // elbrus_handle_ will be null after Exit() was called
-  while (elbrus_handle_) {
+  // cuvslam_handle_ will be null after Exit() was called
+  while (cuvslam_handle_) {
     cond_var_.wait_for(
       locker,
       std::chrono::milliseconds(period_ms_));
-    if (!elbrus_handle_) {break;}
+    if (!cuvslam_handle_) {break;}
     if (!rclcpp::ok()) {break;}
     if (!HasSubscribers(*node_, publisher_)) {
       // no subcribers so disable reading
-      ELBRUS_DisableReadingDataLayer(elbrus_handle_, layer_);
+      CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, layer_);
       continue;
     }
 
     // enable reading
-    if (ELBRUS_EnableReadingDataLayer(
-        elbrus_handle_, layer_,
-        max_landmarks_count_) != ELBRUS_SUCCESS) {continue;}
+    if (CUVSLAM_EnableReadingDataLayer(
+        cuvslam_handle_, layer_,
+        max_landmarks_count_) != CUVSLAM_SUCCESS) {continue;}
 
     // read data
-    ELBRUS_LandmarkInfoArrayRef landmarks;
-    if (ELBRUS_StartReadingLandmarks(elbrus_handle_, layer_, &landmarks) != ELBRUS_SUCCESS) {
+    CUVSLAM_LandmarkInfoArrayRef landmarks;
+    if (CUVSLAM_StartReadingLandmarks(cuvslam_handle_, layer_, &landmarks) != CUVSLAM_SUCCESS) {
       continue;
     }
     if (last_timestamp_ns_ == landmarks.timestamp_ns) {
       // don't need to publish now
-      ELBRUS_FinishReadingLandmarks(elbrus_handle_, layer_);
+      CUVSLAM_FinishReadingLandmarks(cuvslam_handle_, layer_);
       continue;
     }
     last_timestamp_ns_ = landmarks.timestamp_ns;
@@ -120,7 +120,7 @@ void LandmarksVisHelper::Run()
       float w = landmarks.landmarks[i].weight;
       tf2::Vector3 xyz(landmarks.landmarks[i].x, landmarks.landmarks[i].y,
         landmarks.landmarks[i].z);
-      xyz = base_link_pose_elbrus_ * xyz;
+      xyz = base_link_pose_cuvslam_ * xyz;
 
       *iter_x = xyz[0];
       *iter_y = xyz[1];
@@ -165,7 +165,7 @@ void LandmarksVisHelper::Run()
       }
       *iter_rgb = rgb;
     }
-    ELBRUS_FinishReadingLandmarks(elbrus_handle_, layer_);
+    CUVSLAM_FinishReadingLandmarks(cuvslam_handle_, layer_);
 
     // Pointcloud publishing
     publisher_->publish(std::move(pc_msg));

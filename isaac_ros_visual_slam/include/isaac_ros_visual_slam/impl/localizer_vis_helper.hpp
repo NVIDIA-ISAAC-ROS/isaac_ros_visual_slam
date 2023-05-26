@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,8 +40,8 @@ public:
 
   void Init(
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_localizer_probes,
-    ELBRUS_TrackerHandle elbrus_handle,
-    const tf2::Transform & base_link_pose_elbrus,
+    CUVSLAM_TrackerHandle cuvslam_handle,
+    const tf2::Transform & base_link_pose_cuvslam,
     const rclcpp::Node & node,
     const std::string & frame_id);
 

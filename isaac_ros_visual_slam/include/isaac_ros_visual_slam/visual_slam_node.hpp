@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,6 +48,15 @@ namespace isaac_ros
 namespace visual_slam
 {
 
+struct IMUParams
+{
+  double gyroscope_noise_density;       // rad / (s * srqt(Hz))
+  double gyroscope_random_walk;         // rad / (s ^ 2 * srqt(Hz))
+  double accelerometer_noise_density;   // m / (s ^ 2 * srqt(Hz))
+  double accelerometer_random_walk;     // m / (s ^ 3 * srqt(Hz))
+  double calibration_frequency;
+};
+
 class VisualSlamNode : public rclcpp::Node
 {
 public:
@@ -63,8 +72,23 @@ private:
   // cameras with principal points on the horizontal line.
   bool rectified_images_;
 
-  // Enable IMU data acquisition and integration
-  bool enable_imu_;
+  // Enable IMU fusion mode
+  bool enable_imu_fusion_;
+
+  // Data structure to store imu noise params
+  IMUParams imu_params_;
+
+  // Minimum value of acceptable jitter (delta between current and previous timestamps)
+  // Ideally it should be equal to (1 / fps_value). cuVSLAM library will print out warning messages
+  // if rate of incoming image pair is lower than the threshold value.
+  double img_jitter_threshold_ms_;
+
+  // If enabled, prints logs from cuVSLAM library
+  bool enable_verbosity_;
+
+  // If enabled, slam poses will be modified such that the camera moves on a horizontal plane.
+  bool force_planar_mode_;
+
 
   // Enable view observations
   bool enable_observations_view_;
@@ -110,9 +134,6 @@ private:
   // Defines the name of the IMU camera frame used to calculate left_camera_pose_imu
   // The IMU to left camera transformation
   const std::string input_imu_frame_;
-
-  // The gravitational force vector
-  const std::vector<double> gravitational_force_;
 
   // Publish output frames hierarchy. Default is true.
   bool publish_odom_to_base_tf_;
@@ -163,6 +184,7 @@ private:
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_observations_pub_;
   const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr vis_gravity_pub_;
   const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr vis_vo_velocity_pub_;
+  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr vis_slam_odometry_pub_;
 
   // Visualization for map and "loop closure"
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_landmarks_pub_;
@@ -234,7 +256,7 @@ private:
   struct VisualSlamImpl;
   std::unique_ptr<VisualSlamImpl> impl_;
 
-  bool valid_elbrus_api_ = true;
+  bool valid_cuvslam_api_ = true;
 };
 }  // namespace visual_slam
 }  // namespace isaac_ros

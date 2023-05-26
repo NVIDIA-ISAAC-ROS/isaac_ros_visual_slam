@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,20 +27,20 @@ namespace visual_slam
 // VisHelper
 VisHelper::VisHelper() {}
 void VisHelper::Init(
-  ELBRUS_TrackerHandle elbrus_handle,
-  const tf2::Transform & base_link_pose_elbrus,
+  CUVSLAM_TrackerHandle cuvslam_handle,
+  const tf2::Transform & base_link_pose_cuvslam,
   const rclcpp::Node & node,
   const std::string & frame_id)
 {
-  elbrus_handle_ = elbrus_handle;
-  base_link_pose_elbrus_ = base_link_pose_elbrus;
+  cuvslam_handle_ = cuvslam_handle;
+  base_link_pose_cuvslam_ = base_link_pose_cuvslam;
   node_ = &node;
   frame_id_ = frame_id;
 }
 
 void VisHelper::Exit()
 {
-  if (!elbrus_handle_) {
+  if (!cuvslam_handle_) {
     return;
   }
   {
@@ -48,7 +48,7 @@ void VisHelper::Exit()
 
     Reset();
 
-    elbrus_handle_ = 0;
+    cuvslam_handle_ = 0;
     node_ = nullptr;
     frame_id_ = "";
 

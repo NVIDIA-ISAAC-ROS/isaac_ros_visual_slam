@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ISAAC_ROS_VISUAL_SLAM__IMPL__ELBRUS_ROS_CONVERTION_HPP_
-#define ISAAC_ROS_VISUAL_SLAM__IMPL__ELBRUS_ROS_CONVERTION_HPP_
+#ifndef ISAAC_ROS_VISUAL_SLAM__IMPL__CUVSLAM_ROS_CONVERTION_HPP_
+#define ISAAC_ROS_VISUAL_SLAM__IMPL__CUVSLAM_ROS_CONVERTION_HPP_
 
-#include "elbrus.h"  // NOLINT - include .h without directory
+#include "cuvslam.h"  // NOLINT - include .h without directory
 #include "tf2/LinearMath/Transform.h"
 
 namespace isaac_ros
@@ -26,8 +26,8 @@ namespace isaac_ros
 namespace visual_slam
 {
 
-ELBRUS_Pose ToElbrusPose(const tf2::Transform & tf_mat);
-tf2::Transform FromElbrusPose(const ELBRUS_Pose & elbrus_pose);
+CUVSLAM_Pose TocuVSLAMPose(const tf2::Transform & tf_mat);
+tf2::Transform FromcuVSLAMPose(const CUVSLAM_Pose & cuvslam_pose);
 
 tf2::Transform ChangeBasis(
   const tf2::Transform & target_pose_source,
@@ -36,4 +36,4 @@ tf2::Transform ChangeBasis(
 }  // namespace visual_slam
 }  // namespace isaac_ros
 
-#endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__ELBRUS_ROS_CONVERTION_HPP_
+#endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__CUVSLAM_ROS_CONVERTION_HPP_

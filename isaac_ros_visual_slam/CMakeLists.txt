@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,29 +33,29 @@ find_package(Eigen3 REQUIRED)
 find_package(Threads REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-# Elbrus (resolve path from ament_index)
-ament_index_get_resource(ELBRUS_RELATIVE_PATH elbrus isaac_ros_nitros)
+# cuVSLAM (resolve path from ament_index)
+ament_index_get_resource(CUVSLAM_RELATIVE_PATH cuvslam isaac_ros_nitros)
 ament_index_get_prefix_path(AMENT_INDEX_PREFIX_PATHS)
 foreach(PREFIX_PATH IN LISTS AMENT_INDEX_PREFIX_PATHS)
-    if(EXISTS "${PREFIX_PATH}/${ELBRUS_RELATIVE_PATH}")
-      set(ELBRUS "${PREFIX_PATH}/${ELBRUS_RELATIVE_PATH}")
+    if(EXISTS "${PREFIX_PATH}/${CUVSLAM_RELATIVE_PATH}")
+      set(CUVSLAM "${PREFIX_PATH}/${CUVSLAM_RELATIVE_PATH}")
       break()
     endif()
 endforeach()
 
-include_directories(${ELBRUS}/include)
-add_library(elbrus SHARED IMPORTED)
+include_directories(${CUVSLAM}/include)
+add_library(cuvslam SHARED IMPORTED)
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_x86_64_cuda_11_8/libelbrus.so)
+  set_property(TARGET cuvslam PROPERTY IMPORTED_LOCATION ${CUVSLAM}/lib_x86_64_cuda_11_8/libcuvslam.so)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  set_property(TARGET elbrus PROPERTY IMPORTED_LOCATION ${ELBRUS}/lib_aarch64_jetpack51/libelbrus.so)
+  set_property(TARGET cuvslam PROPERTY IMPORTED_LOCATION ${CUVSLAM}/lib_aarch64_jetpack51/libcuvslam.so)
 endif()
 
 # visual_slam_node
 ament_auto_add_library(
   visual_slam_node SHARED
   src/visual_slam_node.cpp
-  src/impl/elbrus_ros_convertion.cpp
+  src/impl/cuvslam_ros_convertion.cpp
   src/impl/landmarks_vis_helper.cpp
   src/impl/localizer_vis_helper.cpp
   src/impl/pose_cache.cpp
@@ -64,7 +64,7 @@ ament_auto_add_library(
   src/impl/viz_helper.cpp
   src/impl/qos.cpp
 )
-target_link_libraries(visual_slam_node elbrus)
+target_link_libraries(visual_slam_node cuvslam)
 rclcpp_components_register_nodes(visual_slam_node "isaac_ros::visual_slam::VisualSlamNode")
 set(node_plugins "${node_plugins}isaac_ros::visual_slam::VisualSlamNode;$<TARGET_FILE:visual_slam_node>\n")
 
@@ -74,14 +74,14 @@ ament_auto_add_executable(${PROJECT_NAME}
 )
 target_link_libraries(${PROJECT_NAME} visual_slam_node)
 
-# Install Elbrus
+# Install cuVSLAM
 if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  install(DIRECTORY ${ELBRUS}/lib_x86_64_cuda_11_8/ DESTINATION share/elbrus)
+  install(DIRECTORY ${CUVSLAM}/lib_x86_64_cuda_11_8/ DESTINATION share/cuvslam)
 elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  install(DIRECTORY ${ELBRUS}/lib_aarch64_jetpack51/ DESTINATION share/elbrus)
+  install(DIRECTORY ${CUVSLAM}/lib_aarch64_jetpack51/ DESTINATION share/cuvslam)
 endif()
 set_target_properties(visual_slam_node PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
-set_target_properties(visual_slam_node PROPERTIES INSTALL_RPATH "$ORIGIN/../share/elbrus")
+set_target_properties(visual_slam_node PROPERTIES INSTALL_RPATH "$ORIGIN/../share/cuvslam")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <!--
- SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ SPDX-FileCopyrightText: Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>isaac_ros_visual_slam</name>
-  <version>0.30.0</version>
+  <version>0.31.0</version>
   <description>Visual SLAM Package</description>
   <maintainer email="swani@nvidia.com">Swapnesh Wani</maintainer>
   <license>Apache-2.0</license>
