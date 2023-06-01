@@ -92,16 +92,27 @@ VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & node)
 : logger_name(std::string(node.get_logger().get_name())),
   node_clock(node.get_clock()),
   // Set cuvslam_pose_base_link for converting ROS coordinate to cuVSLAM coordinate
-  // ROS   ->  cuVSLAM
-  // x     ->  -z
-  // y     ->   -x
-  // z     ->  y
+  // ROS    ->  cuVSLAM
+  //  x     ->    -z
+  //  y     ->    -x
+  //  z     ->     y
   cuvslam_pose_base_link(tf2::Matrix3x3(
       0, -1, 0,
       0, 0, 1,
       -1, 0, 0
     )),
   base_link_pose_cuvslam(cuvslam_pose_base_link.inverse()),
+  // Set cuvslam_pose_optical for converting Optical coordinate to cuVSLAM coordinate
+  // Optical   ->  cuVSLAM
+  //    x      ->     x
+  //    y      ->    -y
+  //    z      ->    -z
+  cuvslam_pose_optical(tf2::Matrix3x3(
+      1, 0, 0,
+      0, -1, 0,
+      0, 0, -1
+    )),
+  optical_pose_cuvslam(cuvslam_pose_optical.inverse()),
   tf_buffer(std::make_unique<tf2_ros::Buffer>(node_clock)),
   tf_listener(std::make_shared<tf2_ros::TransformListener>(*tf_buffer)),
   tf_publisher(std::make_unique<tf2_ros::TransformBroadcaster>(&node)),
@@ -225,11 +236,9 @@ void VisualSlamNode::VisualSlamImpl::Init(
         tf2::Transform left_rect_pose_right_rect(left_pose_right);
         tf2::Transform left_rect_pose_left_unrect(left_r_mat);
         tf2::Transform right_rect_pose_right_unrect(right_r_mat);
-        left_pose_right =
-          left_rect_pose_left_unrect.inverse() * left_rect_pose_right_rect *
-          right_rect_pose_right_unrect;
-        // Invert transform for cuVSLAM for unrectified case.
-        left_pose_right.setBasis(left_pose_right.getBasis().inverse());
+        left_pose_right = ChangeBasis(
+          cuvslam_pose_optical, (left_rect_pose_left_unrect.inverse() * left_rect_pose_right_rect *
+          right_rect_pose_right_unrect));
       }
     }
 
@@ -259,7 +268,8 @@ void VisualSlamNode::VisualSlamImpl::Init(
 
     SetcuVSLAMCameraPose(
       cuvslam_cameras[LEFT_CAMERA_IDX], TocuVSLAMPose(tf2::Transform::getIdentity()));
-    SetcuVSLAMCameraPose(cuvslam_cameras[RIGHT_CAMERA_IDX], TocuVSLAMPose(left_pose_right));
+    SetcuVSLAMCameraPose(
+      cuvslam_cameras[RIGHT_CAMERA_IDX], TocuVSLAMPose(left_pose_right));
 
     cuvslam_cameras[LEFT_CAMERA_IDX].parameters = left_intrinsics.data();
     cuvslam_cameras[RIGHT_CAMERA_IDX].parameters = right_intrinsics.data();

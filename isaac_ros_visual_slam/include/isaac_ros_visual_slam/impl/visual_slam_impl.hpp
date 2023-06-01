@@ -139,14 +139,24 @@ struct VisualSlamNode::VisualSlamImpl
   std::array<float, kMaxNumCameraParameters> left_intrinsics;
   std::array<float, kMaxNumCameraParameters> right_intrinsics;
   // Transformation converting from
-  // ROS Frame    (x-forward, y-left, z-up) to
+  // ROS Frame     (x-forward, y-left, z-up) to
   // cuVSLAM Frame (x-right, y-up, z-backward)
   const tf2::Transform cuvslam_pose_base_link;
 
   // Transformation converting from
   // cuVSLAM Frame (x-right, y-up, z-backward) to
-  // ROS Frame    (x-forward, y-left, z-up)
+  // ROS Frame     (x-forward, y-left, z-up)
   const tf2::Transform base_link_pose_cuvslam;
+
+  // Transformation converting from
+  // Optical Frame    (x-right, y-down, z-forward) to
+  // cuVSLAM Frame    (x-right, y-up, z-backward)
+  const tf2::Transform cuvslam_pose_optical;
+
+  // Transformation converting from
+  // cuVSLAM Frame    (x-right, y-up, z-backward) to
+  // Optical Frame    (x-right, y-down, z-forward)
+  const tf2::Transform optical_pose_cuvslam;
 
   // Start pose of visual odometry
   tf2::Transform start_odom_pose = tf2::Transform::getIdentity();
