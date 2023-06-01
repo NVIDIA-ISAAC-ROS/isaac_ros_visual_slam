@@ -185,14 +185,15 @@ The purpose of this test is to validate that the system is able to appropriately
 
    > **Note**: To maximize the accuracy of this test, ensure that dynamic obstacles are removed from the robot's field of view. If a nontrivial dynamic obstacle is introduced while the robot is performing the loop, please restart this test.
 
-4. As the camera nears the completion of its first lap, place the camera at rest, taking care to precisely align it with the floor marker indicating the starting pose.
-5. On the standalone computer and within the RViz window, ensure that a nontrivial number of visual features now appear red. Additionally, ensure that the camera frame appears nearly coincident with the `/map` frame.
+4. As the camera nears the completion of its first lap, move the camera in a small circle of radius ~0.5m around the origin of the starting pose. This step helps ensure that the previously-seen visual features are recognized and matched.
+5. Place the camera at rest, taking care to precisely align it with the floor marker indicating the starting pose.
+6. On the standalone computer and within the RViz window, ensure that a nontrivial number of visual features now appear red. Additionally, ensure that the camera frame appears nearly coincident with the `/map` frame.
 
     > **Note**: It is acceptable for the `/odom` frame to jump around significantly with respect to the `/map` frame. For the purposes of this test, only the transform between the `/map` and camera frames is relevant. For additional information about the design intent behind these frames, please see [REP-0105](https://www.ros.org/reps/rep-0105.html).
 
     <div align="center"><img src="../resources/validation_test2_rviz.png" width="600px"/></div>
   
-6. On the standalone computer and within the `tf2_echo` terminal, note the latest transform reported between `/map` and the appropriate camera frame. 
+7. On the standalone computer and within the `tf2_echo` terminal, note the latest transform reported between `/map` and the appropriate camera frame. 
    <div align="center"><img src="../resources/validation_test2_tf2.png" width="600px"/></div>
 
    1. Validate Orientation:
