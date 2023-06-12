@@ -200,6 +200,7 @@ To continue your exploration, check out the following suggested examples:
 - <span id="validating-cuvslam">[Validating cuVSLAM on a Robot](docs/validating-cuvslam-setup.md)</span>
 - <span id="tutorial-isaac-sim">[Tutorial with Isaac Sim](docs/tutorial-isaac-sim.md)</span>
 - <span id="tutorial-realsense-imu">[Tutorial for Visual SLAM using a RealSense camera with integrated IMU](docs/tutorial-realsense.md)</span>
+- <span id="tutorial-jetson-orin-nano">[Get started quickly with Visual SLAM on Jetson Orin Nano Developer Kit](https://nvidia-ai-iot.github.io/jetson_isaac_ros_visual_slam_tutorial/)</span>
 
 ### Customize your Dev Environment
 
