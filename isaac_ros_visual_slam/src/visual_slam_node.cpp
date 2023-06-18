@@ -81,11 +81,11 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   left_image_sub_(message_filters::Subscriber<sensor_msgs::msg::Image>(
       this, "stereo_camera/left/image", image_qos_)),
   left_camera_info_sub_(message_filters::Subscriber<sensor_msgs::msg::CameraInfo>(
-      this, "stereo_camera/left/camera_info")),
+      this, "stereo_camera/left/camera_info", image_qos_)),
   right_image_sub_(message_filters::Subscriber<sensor_msgs::msg::Image>(
       this, "stereo_camera/right/image", image_qos_)),
   right_camera_info_sub_(message_filters::Subscriber<sensor_msgs::msg::CameraInfo>(
-      this, "stereo_camera/right/camera_info")),
+      this, "stereo_camera/right/camera_info", image_qos_)),
   imu_sub_(create_subscription<sensor_msgs::msg::Imu>(
       "visual_slam/imu", rclcpp::QoS(100),
       std::bind(&VisualSlamNode::ReadImuData, this, std::placeholders::_1))),
