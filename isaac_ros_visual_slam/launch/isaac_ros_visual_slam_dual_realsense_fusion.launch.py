@@ -96,7 +96,7 @@ def generate_launch_description():
         name='visual_slam_back_node',
         namespace='visual_slam_back',
         package='isaac_ros_visual_slam',
-        plugin='isaac_ros::visual_slam::VisualSlamNode',
+        plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         parameters=[{
                     'enable_rectified_pose': True,
                     'denoise_input_images': False,
@@ -126,7 +126,7 @@ def generate_launch_description():
         name='visual_slam_front_node',
         namespace='visual_slam_front',
         package='isaac_ros_visual_slam',
-        plugin='isaac_ros::visual_slam::VisualSlamNode',
+        plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         parameters=[{
                     'enable_rectified_pose': True,
                     'denoise_input_images': False,

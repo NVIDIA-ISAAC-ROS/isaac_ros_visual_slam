@@ -20,6 +20,7 @@ import pathlib
 import time
 
 from isaac_ros_test import IsaacROSBaseTest
+from isaac_ros_visual_slam_interfaces.srv import Reset
 import launch
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
@@ -29,7 +30,7 @@ import pytest
 
 import rclpy
 
-_TEST_CASE_NAMESPACE = 'visual_slam_test'
+_TEST_CASE_NAMESPACE = 'visual_slam_test_srv'
 
 
 @pytest.mark.rostest
@@ -82,25 +83,37 @@ class IsaacROSVisualSlamTest(IsaacROSBaseTest):
 
     @ IsaacROSBaseTest.for_each_test_case('rosbags')
     def test_visual_slam_node(self, test_folder):
-        TIMEOUT = 20
+        TIMEOUT = 10
         received_messages = {}
         self.generate_namespace_lookup(['visual_slam/tracking/odometry'], _TEST_CASE_NAMESPACE)
         subs = self.create_logging_subscribers(
             [('visual_slam/tracking/odometry', Odometry)], received_messages,
             use_namespace_lookup=True, accept_multiple_messages=True)
 
+        # Create service client
+        self.cli = self.node.create_client(
+            Reset, '/isaac_ros_test/visual_slam_test_srv/visual_slam/reset')
+        # Check if the a service is available
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().info('service not available, waiting again...')
+        self.req = Reset.Request()
+
         try:
-            end_time = time.time() + TIMEOUT
             done = False
 
-            while time.time() < end_time:
-                rclpy.spin_once(self.node, timeout_sec=0.1)
+            time.sleep(TIMEOUT)
 
-            if len(received_messages['visual_slam/tracking/odometry']) > 0:
+            self.future = self.cli.call_async(self.req)
+            rclpy.spin_until_future_complete(self.node, self.future)
+            response = self.future.result()
+            msg = f'Reset service response (success:{response.success})'
+            self.node.get_logger().info(msg)
+
+            if response.success:
                 done = True
 
             self.assertTrue(
-                done, 'Didnt recieve output on visual_slam/tracking/odometry topic')
+                done, ' service did not run successfully')
 
         finally:
             [self.node.destroy_subscription(sub) for sub in subs]

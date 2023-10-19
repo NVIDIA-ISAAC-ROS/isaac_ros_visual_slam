@@ -17,6 +17,8 @@
 
 #include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -71,3 +73,4 @@ tf2::Transform FromcuVSLAMPose(
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia

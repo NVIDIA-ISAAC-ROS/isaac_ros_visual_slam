@@ -17,6 +17,8 @@
 
 #include "isaac_ros_visual_slam/impl/qos.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -54,3 +56,4 @@ rmw_qos_profile_t parseQosString(const std::string & str)
 
 }  //  namespace visual_slam
 }  //  namespace isaac_ros
+}  //  namespace nvidia

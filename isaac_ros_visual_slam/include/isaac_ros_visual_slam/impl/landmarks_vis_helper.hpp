@@ -22,8 +22,10 @@
 #include <string>
 
 #include "viz_helper.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -50,10 +52,9 @@ public:
   ~LandmarksVisHelper() override;
 
   void Init(
-    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher,
+    const rclcpp::Publisher<PointCloud2Type>::SharedPtr publisher,
     CUVSLAM_TrackerHandle cuvslam_handle,
-    const tf2::Transform & base_link_pose_cuvslam,
-    const rclcpp::Node & node,
+    const tf2::Transform & canonical_pose_cuvslam,
     const std::string & frame_id
   );
 
@@ -72,12 +73,13 @@ protected:
   uint32_t period_ms_ = 500;
 
   // Point cloud to visualize tracks
-  using pointcloud_msg_t = std::unique_ptr<sensor_msgs::msg::PointCloud2>;
+  using pointcloud_msg_t = std::unique_ptr<PointCloud2Type>;
 
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+  rclcpp::Publisher<PointCloud2Type>::SharedPtr publisher_;
 };
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__LANDMARKS_VIS_HELPER_HPP_

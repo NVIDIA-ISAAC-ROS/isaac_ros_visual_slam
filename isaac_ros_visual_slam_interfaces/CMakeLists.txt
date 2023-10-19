@@ -15,11 +15,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.23.2)
+cmake_minimum_required(VERSION 3.22.1)
 project(isaac_ros_visual_slam_interfaces LANGUAGES C CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# The FindPythonInterp and FindPythonLibs modules are removed
+if(POLICY CMP0148)
+  cmake_policy(SET CMP0148 OLD)
 endif()
 
 find_package(ament_cmake_auto REQUIRED)

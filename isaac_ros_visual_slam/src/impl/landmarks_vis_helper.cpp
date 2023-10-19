@@ -22,8 +22,11 @@
 
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/landmarks_vis_helper.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -40,15 +43,14 @@ LandmarksVisHelper::LandmarksVisHelper(
 LandmarksVisHelper::~LandmarksVisHelper() {Exit();}
 
 void LandmarksVisHelper::Init(
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher,
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr publisher,
   CUVSLAM_TrackerHandle cuvslam_handle,
-  const tf2::Transform & base_link_pose_cuvslam,
-  const rclcpp::Node & node,
+  const tf2::Transform & canonical_pose_cuvslam,
   const std::string & frame_id
 )
 {
   publisher_ = publisher;
-  VisHelper::Init(cuvslam_handle, base_link_pose_cuvslam, node, frame_id);
+  VisHelper::Init(cuvslam_handle, canonical_pose_cuvslam, frame_id);
   thread_ = std::thread{&LandmarksVisHelper::Run, this};
 }
 
@@ -68,7 +70,7 @@ void LandmarksVisHelper::Run()
       std::chrono::milliseconds(period_ms_));
     if (!cuvslam_handle_) {break;}
     if (!rclcpp::ok()) {break;}
-    if (!HasSubscribers(*node_, publisher_)) {
+    if (!HasSubscribers(publisher_)) {
       // no subcribers so disable reading
       CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, layer_);
       continue;
@@ -92,7 +94,7 @@ void LandmarksVisHelper::Run()
     last_timestamp_ns_ = landmarks.timestamp_ns;
 
     // publish points
-    pointcloud_msg_t pc_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+    pointcloud_msg_t pc_msg = std::make_unique<PointCloud2Type>();
 
     pc_msg->header.frame_id = frame_id_;
     pc_msg->header.stamp = rclcpp::Time(landmarks.timestamp_ns, RCL_SYSTEM_TIME);
@@ -120,7 +122,7 @@ void LandmarksVisHelper::Run()
       float w = landmarks.landmarks[i].weight;
       tf2::Vector3 xyz(landmarks.landmarks[i].x, landmarks.landmarks[i].y,
         landmarks.landmarks[i].z);
-      xyz = base_link_pose_cuvslam_ * xyz;
+      xyz = canonical_pose_cuvslam_ * xyz;
 
       *iter_x = xyz[0];
       *iter_y = xyz[1];
@@ -174,3 +176,4 @@ void LandmarksVisHelper::Run()
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia

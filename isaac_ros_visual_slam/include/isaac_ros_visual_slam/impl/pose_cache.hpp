@@ -25,6 +25,8 @@
 #include "tf2/LinearMath/Transform.h"
 #include "tf2/LinearMath/Quaternion.h"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -62,5 +64,6 @@ private:
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__POSE_CACHE_HPP_

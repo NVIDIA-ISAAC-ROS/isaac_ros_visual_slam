@@ -15,7 +15,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.23.2)
+cmake_minimum_required(VERSION 3.22.1)
 project(isaac_ros_visual_slam LANGUAGES C CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -65,8 +65,8 @@ ament_auto_add_library(
   src/impl/qos.cpp
 )
 target_link_libraries(visual_slam_node cuvslam)
-rclcpp_components_register_nodes(visual_slam_node "isaac_ros::visual_slam::VisualSlamNode")
-set(node_plugins "${node_plugins}isaac_ros::visual_slam::VisualSlamNode;$<TARGET_FILE:visual_slam_node>\n")
+rclcpp_components_register_nodes(visual_slam_node "nvidia::isaac_ros::visual_slam::VisualSlamNode")
+set(node_plugins "${node_plugins}nvidia::isaac_ros::visual_slam::VisualSlamNode;$<TARGET_FILE:visual_slam_node>\n")
 
 # isaac_ros_visual_slam executable
 ament_auto_add_executable(${PROJECT_NAME}
@@ -87,8 +87,34 @@ if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
 
+
+  # The FindPythonInterp and FindPythonLibs modules are removed
+  if(POLICY CMP0148)
+    cmake_policy(SET CMP0148 OLD)
+  endif()
+
   find_package(launch_testing_ament_cmake REQUIRED)
   add_launch_test(test/isaac_ros_visual_slam_pol.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv.py)
+
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(${PROJECT_NAME}_test_message_buffer test/test_message_buffer.cpp)
+  target_include_directories(${PROJECT_NAME}_test_message_buffer PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+  ament_target_dependencies(${PROJECT_NAME}_test_message_buffer
+    std_msgs
+  )
+
+  ament_add_gtest(${PROJECT_NAME}_test_message_stream_sequencer test/test_message_stream_sequencer.cpp)
+  target_include_directories(${PROJECT_NAME}_test_message_stream_sequencer PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+  ament_target_dependencies(${PROJECT_NAME}_test_message_stream_sequencer
+    std_msgs
+  )
 endif()
 
-ament_auto_package(INSTALL_TO_SHARE launch params)
+ament_auto_package(INSTALL_TO_SHARE config launch params)

@@ -173,7 +173,8 @@ void QuaternionCovToRollPitchYawCov(
 }
 }  //  namespace
 
-
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -290,10 +291,10 @@ void VelocityCache::Add(
   const double & pitch, const double & yaw)
 {
   velocities_.push_back(
-      {
-        x, y, z,
-        roll, pitch, yaw
-      });
+        {
+          x, y, z,
+          roll, pitch, yaw
+        });
 
   while (velocities_.size() > num_velocities_to_keep_) {
     velocities_.pop_front();
@@ -333,3 +334,4 @@ bool VelocityCache::GetCovariance(std::array<double, 6 * 6> & cov) const
 
 }  //  namespace visual_slam
 }  //  namespace isaac_ros
+}  //  namespace nvidia

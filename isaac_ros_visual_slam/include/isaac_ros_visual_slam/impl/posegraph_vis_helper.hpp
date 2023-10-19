@@ -21,10 +21,11 @@
 #include <memory>
 #include <string>
 
-#include "geometry_msgs/msg/pose_array.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "viz_helper.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -42,12 +43,11 @@ public:
   ~PoseGraphVisHelper() override;
 
   void Init(
-    const rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr publisher_nodes,
-    const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges,
-    const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges2,
+    const rclcpp::Publisher<PoseArrayType>::SharedPtr publisher_nodes,
+    const rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges,
+    const rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges2,
     CUVSLAM_TrackerHandle cuvslam_handle,
-    const tf2::Transform & base_link_pose_cuvslam,
-    const rclcpp::Node & node,
+    const tf2::Transform & canonical_pose_cuvslam,
     const std::string & frame_id);
 
   void Reset() override;
@@ -61,14 +61,15 @@ protected:
 
   uint64_t last_timestamp_ns_ = 0;
 
-  using nodes_msg_t = std::unique_ptr<geometry_msgs::msg::PoseArray>;
+  using nodes_msg_t = std::unique_ptr<PoseArrayType>;
 
-  rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr publisher_nodes_;
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges_;
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges2_;
+  rclcpp::Publisher<PoseArrayType>::SharedPtr publisher_nodes_;
+  rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges_;
+  rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges2_;
 };
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__POSEGRAPH_VIS_HELPER_HPP_

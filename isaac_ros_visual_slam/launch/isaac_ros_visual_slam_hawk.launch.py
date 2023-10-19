@@ -37,10 +37,18 @@ def generate_launch_description():
                    '0.0', '0.70710678', 'camera', 'bmi088_frame']
     )
 
-    argus_stereo_node = ComposableNode(
-        name='argus_stereo',
-        package='isaac_ros_argus_camera',
-        plugin='nvidia::isaac_ros::argus::ArgusStereoNode',
+    correlated_timestamp_driver_node = ComposableNode(
+        package='isaac_ros_correlated_timestamp_driver',
+        plugin='nvidia::isaac_ros::correlated_timestamp_driver::CorrelatedTimestampDriverNode',
+        name='correlated_timestamp_driver',
+        parameters=[{'use_time_since_epoch': False,
+                     'nvpps_dev_name': '/dev/nvpps0'}])
+
+    hawk_front_node = ComposableNode(
+        name='hawk_front_node',
+        package='isaac_ros_hawk',
+        plugin='nvidia::isaac_ros::hawk::HawkNode',
+        parameters=[{'module_id': 5}]
     )
 
     bmi088_node = ComposableNode(
@@ -90,7 +98,7 @@ def generate_launch_description():
     visual_slam_node = ComposableNode(
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
-        plugin='isaac_ros::visual_slam::VisualSlamNode',
+        plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         parameters=[{
                     'denoise_input_images': False,
                     'enable_debug_mode': False,
@@ -124,7 +132,8 @@ def generate_launch_description():
         executable='component_container',
         namespace='',
         composable_node_descriptions=[
-            argus_stereo_node,
+            hawk_front_node,
+            correlated_timestamp_driver_node,
             bmi088_node,
             left_rectify_node,
             right_rectify_node,
@@ -140,7 +149,8 @@ def generate_launch_description():
         executable='component_container',
         namespace='',
         composable_node_descriptions=[
-            argus_stereo_node,
+            hawk_front_node,
+            correlated_timestamp_driver_node,
             bmi088_node,
             visual_slam_node
         ],

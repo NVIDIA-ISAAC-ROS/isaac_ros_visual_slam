@@ -19,6 +19,8 @@
 
 #include "isaac_ros_visual_slam/impl/viz_helper.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -28,13 +30,11 @@ namespace visual_slam
 VisHelper::VisHelper() {}
 void VisHelper::Init(
   CUVSLAM_TrackerHandle cuvslam_handle,
-  const tf2::Transform & base_link_pose_cuvslam,
-  const rclcpp::Node & node,
+  const tf2::Transform & canonical_pose_cuvslam,
   const std::string & frame_id)
 {
   cuvslam_handle_ = cuvslam_handle;
-  base_link_pose_cuvslam_ = base_link_pose_cuvslam;
-  node_ = &node;
+  canonical_pose_cuvslam_ = canonical_pose_cuvslam;
   frame_id_ = frame_id;
 }
 
@@ -49,7 +49,6 @@ void VisHelper::Exit()
     Reset();
 
     cuvslam_handle_ = 0;
-    node_ = nullptr;
     frame_id_ = "";
 
     cond_var_.notify_all();
@@ -64,3 +63,4 @@ void VisHelper::Exit()
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
