@@ -25,7 +25,7 @@ def generate_launch_description():
     visual_slam_node = ComposableNode(
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
-        plugin='isaac_ros::visual_slam::VisualSlamNode',
+        plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         remappings=[('/stereo_camera/left/camera_info', '/camera_info_left'),
                     ('/stereo_camera/right/camera_info', '/camera_info_right')],
         parameters=[{

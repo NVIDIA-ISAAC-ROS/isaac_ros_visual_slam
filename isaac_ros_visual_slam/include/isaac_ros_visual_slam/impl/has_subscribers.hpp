@@ -23,30 +23,34 @@
 #include "rclcpp/node.hpp"
 #include "rclcpp/publisher.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
 {
 template<class T>
-bool HasSubscribers(
-  const rclcpp::Node & node,
-  const std::shared_ptr<rclcpp::Publisher<T>> & publisher)
+bool HasSubscribers(const std::shared_ptr<rclcpp::Publisher<T>> & publisher)
 {
   if (!publisher) {
     return false;
   }
   try {
     size_t subscribers = 0;
-    subscribers = node.count_subscribers(publisher->get_topic_name());
+    subscribers = publisher->get_subscription_count() +
+      publisher->get_intra_process_subscription_count();
     return subscribers != 0;
   } catch (...) {
     rcutils_reset_error();
-    RCLCPP_DEBUG(node.get_logger(), "HasSubscribers(): Exception while counting subscribers");
+    RCLCPP_DEBUG(
+      rclcpp::get_logger(
+        "HasSubscribers"), "HasSubscribers(): Exception while counting subscribers");
   }
   return false;
 }
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__HAS_SUBSCRIBERS_HPP_

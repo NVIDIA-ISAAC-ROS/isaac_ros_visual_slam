@@ -22,6 +22,8 @@
 #include <sstream>
 #include <string>
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -32,7 +34,7 @@ Usage:
 #include "stopwatch.hpp"
 Stopwatch stopwatch;
 for(;;) {
-    isaac_ros::visual_slam::StopwatchScope ssw(stopwatch);
+    nvidia::isaac_ros::visual_slam::StopwatchScope ssw(stopwatch);
     // measured code ...
 }
 
@@ -102,5 +104,6 @@ public:
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__STOPWATCH_HPP_

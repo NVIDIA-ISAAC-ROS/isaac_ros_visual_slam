@@ -22,7 +22,10 @@
 #include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/localizer_vis_helper.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -43,15 +46,14 @@ LocalizerVisHelper::~LocalizerVisHelper()
 }
 
 void LocalizerVisHelper::Init(
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_localizer_probes,
+  rclcpp::Publisher<MarkerArrayType>::SharedPtr publisher_localizer_probes,
   CUVSLAM_TrackerHandle cuvslam_handle,
-  const tf2::Transform & base_link_pose_cuvslam,
-  const rclcpp::Node & node,
+  const tf2::Transform & canonical_pose_cuvslam,
   const std::string & frame_id)
 {
   publisher_localizer_probes_ = publisher_localizer_probes;
 
-  VisHelper::Init(cuvslam_handle, base_link_pose_cuvslam, node, frame_id);
+  VisHelper::Init(cuvslam_handle, canonical_pose_cuvslam, frame_id);
   thread_ = std::thread{&LocalizerVisHelper::Run, this};
 }
 
@@ -81,10 +83,10 @@ void LocalizerVisHelper::Run()
   while (cuvslam_handle_) {
     if (reset_required_) {
       // reset all data
-      visualization_msgs::msg::MarkerArray markers;
+      MarkerArrayType markers;
       markers.markers.resize(1);
-      visualization_msgs::msg::Marker & marker_probes = markers.markers[0];
-      marker_probes.action = visualization_msgs::msg::Marker::DELETEALL;
+      MarkerType & marker_probes = markers.markers[0];
+      marker_probes.action = MarkerType::DELETEALL;
       publisher_localizer_probes_->publish(markers);
       reset_required_ = false;
     }
@@ -93,23 +95,21 @@ void LocalizerVisHelper::Run()
       std::chrono::milliseconds(period_ms_));
     if (!cuvslam_handle_) {break;}
     if (!rclcpp::ok()) {break;}
-    if (!HasSubscribers(*node_, publisher_localizer_probes_)) {
+    if (!HasSubscribers(publisher_localizer_probes_)) {
       // no subcribers so disable reading
       CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, LL_LOCALIZER_PROBES);
       continue;
     }
     // enable reading
     if (CUVSLAM_EnableReadingDataLayer(
-        cuvslam_handle_, LL_LOCALIZER_PROBES,
-        max_items_count_) != CUVSLAM_SUCCESS)
+        cuvslam_handle_, LL_LOCALIZER_PROBES, max_items_count_) != CUVSLAM_SUCCESS)
     {
       continue;
     }
     // read data
     CUVSLAM_LocalizerProbesRef localizer_probes;
     if (CUVSLAM_StartReadingLocalizerProbes(
-        cuvslam_handle_, LL_LOCALIZER_PROBES,
-        &localizer_probes) != CUVSLAM_SUCCESS)
+        cuvslam_handle_, &localizer_probes) != CUVSLAM_SUCCESS)
     {
       continue;
     }
@@ -117,7 +117,7 @@ void LocalizerVisHelper::Run()
       last_num_probes_ == localizer_probes.num_probes)
     {
       // don't need to publish now
-      CUVSLAM_FinishReadingLocalizerProbes(cuvslam_handle_, LL_LOCALIZER_PROBES);
+      CUVSLAM_FinishReadingLocalizerProbes(cuvslam_handle_);
       continue;
     }
 
@@ -142,16 +142,16 @@ void LocalizerVisHelper::Run()
     }
 
     if (true) {
-      visualization_msgs::msg::MarkerArray markers;
+      MarkerArrayType markers;
       markers.markers.resize(2);
       {
-        visualization_msgs::msg::Marker & marker_probes = markers.markers[0];
+        MarkerType & marker_probes = markers.markers[0];
         marker_probes.header.frame_id = frame_id_;
         marker_probes.header.stamp = stamp;
         marker_probes.ns = "probes";
         marker_probes.id = 0;
-        marker_probes.action = visualization_msgs::msg::Marker::ADD;
-        marker_probes.type = visualization_msgs::msg::Marker::LINE_LIST;
+        marker_probes.action = MarkerType::ADD;
+        marker_probes.type = MarkerType::LINE_LIST;
         marker_probes.pose.position.x = 0;
         marker_probes.pose.position.y = 0;
         marker_probes.pose.position.z = 0;
@@ -169,19 +169,18 @@ void LocalizerVisHelper::Run()
         marker_probes.points.resize(localizer_probes.num_probes * 2);
         marker_probes.colors.resize(localizer_probes.num_probes * 2);
         if (localizer_probes.num_probes == 0) {
-          marker_probes.action = visualization_msgs::msg::Marker::DELETE;
+          marker_probes.action = MarkerType::DELETE;
         }
         for (uint32_t i = 0; i < localizer_probes.num_probes; i++) {
           const CUVSLAM_LocalizerProbe & probe = localizer_probes.probes[i];
 
-          tf2::Transform guess_pose__cuvslam = FromcuVSLAMPose(probe.guess_pose);
-          tf2::Vector3 origin = guess_pose__cuvslam * tf2::Vector3(
-            0, 0,
-            -localizer_probes.size * 0.05);
-          guess_pose__cuvslam.setOrigin(origin);
+          tf2::Transform guess_pose_cuvslam = FromcuVSLAMPose(probe.guess_pose);
+          tf2::Vector3 origin = guess_pose_cuvslam * tf2::Vector3(
+            0, 0, -localizer_probes.size * 0.05);
+          guess_pose_cuvslam.setOrigin(origin);
           const tf2::Transform guess_pose__ros{ChangeBasis(
-              base_link_pose_cuvslam_,
-              guess_pose__cuvslam)};
+              canonical_pose_cuvslam_,
+              guess_pose_cuvslam)};
 
           tf2::Vector3 p1 = guess_pose__ros * zero;
           tf2::Vector3 p2 = guess_pose__ros * (one * 0.4);
@@ -205,13 +204,13 @@ void LocalizerVisHelper::Run()
         }
       }
       {
-        visualization_msgs::msg::Marker & marker_probes = markers.markers[1];
+        MarkerType & marker_probes = markers.markers[1];
         marker_probes.header.frame_id = frame_id_;
         marker_probes.header.stamp = stamp;
         marker_probes.ns = "result";
         marker_probes.id = 0;
-        marker_probes.action = visualization_msgs::msg::Marker::ADD;
-        marker_probes.type = visualization_msgs::msg::Marker::LINE_STRIP;
+        marker_probes.action = MarkerType::ADD;
+        marker_probes.type = MarkerType::LINE_STRIP;
         marker_probes.pose.position.x = 0;
         marker_probes.pose.position.y = 0;
         marker_probes.pose.position.z = 0;
@@ -244,7 +243,7 @@ void LocalizerVisHelper::Run()
           line_colors.push_back(tf2::Vector3(0, 0, 1));
           line_colors.push_back(tf2::Vector3(0, 0, 1));
         } else {
-          marker_probes.action = visualization_msgs::msg::Marker::DELETE;
+          marker_probes.action = MarkerType::DELETE;
         }
         marker_probes.points.resize(line_strip.size());
         marker_probes.colors.resize(line_strip.size());
@@ -266,9 +265,10 @@ void LocalizerVisHelper::Run()
     } else {
     }
 
-    CUVSLAM_FinishReadingLocalizerProbes(cuvslam_handle_, LL_LOCALIZER_PROBES);
+    CUVSLAM_FinishReadingLocalizerProbes(cuvslam_handle_);
   }
 }
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia

@@ -25,11 +25,12 @@ def generate_launch_description():
     visual_slam_node = ComposableNode(
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
-        plugin='isaac_ros::visual_slam::VisualSlamNode',
-        remappings=[('/stereo_camera/left/camera_info', '/camera_info_left'),
-                    ('/stereo_camera/right/camera_info', '/camera_info_right'),
-                    ('/stereo_camera/left/image', '/rgb_left'),
-                    ('/stereo_camera/right/image', '/rgb_right')],
+        plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
+        remappings=[('stereo_camera/left/image', 'front_stereo_camera/left_rgb/image_raw'),
+                    ('stereo_camera/left/camera_info', 'front_stereo_camera/left_rgb/camerainfo'),
+                    ('stereo_camera/right/image', 'front_stereo_camera/right_rgb/image_raw'),
+                    ('stereo_camera/right/camera_info', 'front_stereo_camera/right_rgb/camerainfo')
+                    ],
         parameters=[{
                     'use_sim_time': True,
                     'denoise_input_images': True,
@@ -41,7 +42,8 @@ def generate_launch_description():
                     'debug_dump_path': '/tmp/cuvslam',
                     'map_frame': 'map',
                     'odom_frame': 'odom',
-                    'base_frame': 'base_link'
+                    'base_frame': 'base_link',
+                    'input_base_frame': 'base_link',
                     }]
 
     )
@@ -52,7 +54,7 @@ def generate_launch_description():
         package='rclcpp_components',
         executable='component_container',
         composable_node_descriptions=[
-            visual_slam_node
+            visual_slam_node,
         ],
         output='screen'
     )

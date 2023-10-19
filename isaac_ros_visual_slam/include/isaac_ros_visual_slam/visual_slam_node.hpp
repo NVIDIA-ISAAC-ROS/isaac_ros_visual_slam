@@ -20,29 +20,16 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include "geometry_msgs/msg/pose_array.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/transform_stamped.hpp"
-#include "isaac_ros_visual_slam_interfaces/action/load_map_and_localize.hpp"
-#include "isaac_ros_visual_slam_interfaces/action/save_map.hpp"
-#include "isaac_ros_visual_slam_interfaces/msg/visual_slam_status.hpp"
-#include "isaac_ros_visual_slam_interfaces/srv/get_all_poses.hpp"
-#include "isaac_ros_visual_slam_interfaces/srv/reset.hpp"
-#include "isaac_ros_visual_slam_interfaces/srv/set_odometry_pose.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "message_filters/subscriber.h"
-#include "nav_msgs/msg/odometry.hpp"
-#include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
-#include "sensor_msgs/msg/camera_info.hpp"
-#include "sensor_msgs/msg/image.hpp"
-#include "sensor_msgs/msg/imu.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -82,6 +69,10 @@ private:
   // Ideally it should be equal to (1 / fps_value). cuVSLAM library will print out warning messages
   // if rate of incoming image pair is lower than the threshold value.
   double img_jitter_threshold_ms_;
+
+  // Minimum value of acceptable jitter (delta between current and previous timestamps)
+  // Ideally it should be equal to (1 / fps_value).
+  double imu_jitter_threshold_ms_;
 
   // If enabled, prints logs from cuVSLAM library
   bool enable_verbosity_;
@@ -164,101 +155,100 @@ private:
   const rmw_qos_profile_t image_qos_;
 
   // Subscribers
-  message_filters::Subscriber<sensor_msgs::msg::Image> left_image_sub_;
-  message_filters::Subscriber<sensor_msgs::msg::CameraInfo> left_camera_info_sub_;
-  message_filters::Subscriber<sensor_msgs::msg::Image> right_image_sub_;
-  message_filters::Subscriber<sensor_msgs::msg::CameraInfo> right_camera_info_sub_;
-  const rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+  message_filters::Subscriber<ImageType> left_image_sub_;
+  message_filters::Subscriber<CameraInfoType> left_camera_info_sub_;
+  message_filters::Subscriber<ImageType> right_image_sub_;
+  message_filters::Subscriber<CameraInfoType> right_camera_info_sub_;
+  const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
 
   // Publishers: Visual SLAM
-  const rclcpp::Publisher<isaac_ros_visual_slam_interfaces::msg::VisualSlamStatus>::
-  SharedPtr visual_slam_status_pub_;
-  const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr tracking_vo_pose_pub_;
-  const rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+  const rclcpp::Publisher<VisualSlamStatusType>::SharedPtr visual_slam_status_pub_;
+  const rclcpp::Publisher<PoseStampedType>::SharedPtr tracking_vo_pose_pub_;
+  const rclcpp::Publisher<PoseWithCovarianceStampedType>::SharedPtr
     tracking_vo_pose_covariance_pub_;
-  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr tracking_odometry_pub_;
-  const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr tracking_vo_path_pub_;
-  const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr tracking_slam_path_pub_;
+  const rclcpp::Publisher<OdometryType>::SharedPtr tracking_odometry_pub_;
+  const rclcpp::Publisher<PathType>::SharedPtr tracking_vo_path_pub_;
+  const rclcpp::Publisher<PathType>::SharedPtr tracking_slam_path_pub_;
 
   // Visualization for odometry
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_observations_pub_;
-  const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr vis_gravity_pub_;
-  const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr vis_vo_velocity_pub_;
-  const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr vis_slam_odometry_pub_;
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_observations_pub_;
+  const rclcpp::Publisher<MarkerType>::SharedPtr vis_gravity_pub_;
+  const rclcpp::Publisher<MarkerArrayType>::SharedPtr vis_vo_velocity_pub_;
+  const rclcpp::Publisher<OdometryType>::SharedPtr vis_slam_odometry_pub_;
 
   // Visualization for map and "loop closure"
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_landmarks_pub_;
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_loop_closure_pub_;
-  const rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr vis_posegraph_nodes_pub_;
-  const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr vis_posegraph_edges_pub_;
-  const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr vis_posegraph_edges2_pub_;
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_landmarks_pub_;
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_loop_closure_pub_;
+  const rclcpp::Publisher<PoseArrayType>::SharedPtr vis_posegraph_nodes_pub_;
+  const rclcpp::Publisher<MarkerType>::SharedPtr vis_posegraph_edges_pub_;
+  const rclcpp::Publisher<MarkerType>::SharedPtr vis_posegraph_edges2_pub_;
 
   // Visualization for localization
-  const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr vis_localizer_pub_;
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_localizer_landmarks_pub_;
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_localizer_observations_pub_;
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr vis_localizer_loop_closure_pub_;
+  const rclcpp::Publisher<MarkerArrayType>::SharedPtr vis_localizer_pub_;
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_localizer_landmarks_pub_;
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_localizer_observations_pub_;
+  const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_localizer_loop_closure_pub_;
 
   // Slam Services
-  const rclcpp::Service<isaac_ros_visual_slam_interfaces::srv::Reset>::SharedPtr reset_srv_;
-  const rclcpp::Service<isaac_ros_visual_slam_interfaces::srv::GetAllPoses>::SharedPtr
-    get_all_poses_srv_;
-  const rclcpp::Service<isaac_ros_visual_slam_interfaces::srv::SetOdometryPose>::SharedPtr
-    set_odometry_pose_srv_;
+  const rclcpp::Service<SrvReset>::SharedPtr reset_srv_;
+  const rclcpp::Service<SrvGetAllPoses>::SharedPtr get_all_poses_srv_;
+  const rclcpp::Service<SrvSetOdometryPose>::SharedPtr set_odometry_pose_srv_;
 
   void CallbackReset(
-    const std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::Reset_Request> req,
-    std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::Reset_Response> res);
+    const std::shared_ptr<SrvReset::Request> req,
+    std::shared_ptr<SrvReset::Response> res);
   void CallbackGetAllPoses(
-    const std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::GetAllPoses_Request> req,
-    std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::GetAllPoses_Response> res);
+    const std::shared_ptr<SrvGetAllPoses::Request> req,
+    std::shared_ptr<SrvGetAllPoses::Response> res);
   void CallbackSetOdometryPose(
-    const std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::SetOdometryPose_Request> req,
-    std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::SetOdometryPose_Response> res);
+    const std::shared_ptr<SrvSetOdometryPose::Request> req,
+    std::shared_ptr<SrvSetOdometryPose::Response> res);
 
   // SaveMap Action
-  rclcpp_action::Server<isaac_ros_visual_slam_interfaces::action::SaveMap>::SharedPtr
-    save_map_server_;
-  using GoalHandleSaveMap =
-    rclcpp_action::ServerGoalHandle<isaac_ros_visual_slam_interfaces::action::SaveMap>;
+  rclcpp_action::Server<ActionSaveMap>::SharedPtr save_map_server_;
+  using GoalHandleSaveMap = rclcpp_action::ServerGoalHandle<ActionSaveMap>;
   rclcpp_action::GoalResponse CallbackSaveMapGoal(
-    const rclcpp_action::GoalUUID & uuid,
-    std::shared_ptr<const isaac_ros_visual_slam_interfaces::action::SaveMap::Goal> goal);
+    const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const ActionSaveMap::Goal> goal);
   rclcpp_action::CancelResponse CallbackSaveMapCancel(
     const std::shared_ptr<GoalHandleSaveMap> goal_handle);
   void CallbackSaveMapAccepted(
     const std::shared_ptr<GoalHandleSaveMap> goal_handle);
 
   // LoadMapAndLocalize Action
-  rclcpp_action::Server<isaac_ros_visual_slam_interfaces::action::LoadMapAndLocalize>::SharedPtr
-    load_map_and_localize_server_;
-  using GoalHandleLoadMapAndLocalize = rclcpp_action::ServerGoalHandle
-    <isaac_ros_visual_slam_interfaces::action::LoadMapAndLocalize>;
+  rclcpp_action::Server<ActionLoadMapAndLocalize>::SharedPtr load_map_and_localize_server_;
+  using GoalHandleLoadMapAndLocalize = rclcpp_action::ServerGoalHandle<ActionLoadMapAndLocalize>;
   rclcpp_action::GoalResponse CallbackLoadMapAndLocalizeGoal(
-    const rclcpp_action::GoalUUID & uuid,
-    std::shared_ptr
-    <const isaac_ros_visual_slam_interfaces::action::LoadMapAndLocalize::Goal> goal);
+    const rclcpp_action::GoalUUID & uuid, std::shared_ptr
+    <const ActionLoadMapAndLocalize::Goal> goal);
   rclcpp_action::CancelResponse CallbackLoadMapAndLocalizeCancel(
     const std::shared_ptr<GoalHandleLoadMapAndLocalize> goal_handle);
   void CallbackLoadMapAndLocalizeAccepted(
     const std::shared_ptr<GoalHandleLoadMapAndLocalize> goal_handle);
 
   // Callback function for images
-  void TrackCameraPose(
-    const sensor_msgs::msg::Image::ConstSharedPtr & msg_left_img,
-    const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_left_camera_info,
-    const sensor_msgs::msg::Image::ConstSharedPtr & msg_right_img,
-    const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg_right_camera_info);
+  void ReadImageData(
+    const ImageType::ConstSharedPtr & msg_left_img,
+    const CameraInfoType::ConstSharedPtr & msg_left_camera_info,
+    const ImageType::ConstSharedPtr & msg_right_img,
+    const CameraInfoType::ConstSharedPtr & msg_right_camera_info);
 
   // Callback funtion for imu
-  void ReadImuData(const sensor_msgs::msg::Imu::ConstSharedPtr msg_imu);
+  void ReadImuData(const ImuType::ConstSharedPtr msg_imu);
+
+  // Callback function for interleaved imu and image messages
+
+  void ComputePose(
+    const std::vector<ImuType::ConstSharedPtr> imu_msgs,
+    const std::pair<ImageType::ConstSharedPtr, ImageType::ConstSharedPtr> image_pair);
 
   struct VisualSlamImpl;
   std::unique_ptr<VisualSlamImpl> impl_;
 
   bool valid_cuvslam_api_ = true;
 };
+
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__VISUAL_SLAM_NODE_HPP_

@@ -1,0 +1,167 @@
+# config/common_yaml
+# Common parameters to Stereolabs ZED and ZED mini cameras
+#
+# Note: the parameter svo_file is passed as exe argumet
+---
+/**:
+    ros__parameters:
+
+        general:
+            camera_model: "zed2i"
+            camera_name: "zed2i" # usually overwritten by launch file
+            grab_resolution: 'HD720' # The native camera grab resolution. 'HD2K', 'HD1080', 'HD720', 'VGA', 'AUTO'
+            grab_frame_rate: 60 # ZED SDK internal grabbing rate
+            svo_file: "" # usually overwritten by launch file
+            svo_loop: false # Enable loop mode when using an SVO as input source
+            svo_realtime: true # if true the SVO will be played trying to respect the original framerate eventually skipping frames, otherwise every frame will be processed respecting the `pub_frame_rate` setting
+            camera_timeout_sec: 5
+            camera_max_reconnect: 5
+            camera_flip: false
+            zed_id: 0 # IMPORTANT: to be used in simulation to distinguish individual cameras im multi-camera configurations - usually overwritten by launch file
+            serial_number: 0 # usually overwritten by launch file
+            pub_resolution: 'MEDIUM' # The resolution used for output. 'HD2K', 'HD1080', 'HD1200', 'HD720', 'MEDIUM', 'SVGA', 'VGA', 'LOW'
+            pub_frame_rate: 60.0 # [DYNAMIC] - frequency of publishing of visual images and depth images
+            gpu_id: -1
+            region_of_interest: '[]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
+            #region_of_interest: '[[0.25,0.33],[0.75,0.33],[0.75,0.5],[0.5,0.75],[0.25,0.5]]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
+            #region_of_interest: '[[0.25,0.25],[0.75,0.25],[0.75,0.75],[0.25,0.75]]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
+            #region_of_interest: '[[0.5,0.25],[0.75,0.5],[0.5,0.75],[0.25,0.5]]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
+            sdk_verbose: 1
+
+        video:
+            brightness: 4 # [DYNAMIC] Not available for ZED X/ZED X Mini
+            contrast: 4 # [DYNAMIC] Not available for ZED X/ZED X Mini
+            hue: 0 # [DYNAMIC] Not available for ZED X/ZED X Mini
+            saturation: 4 # [DYNAMIC]
+            sharpness: 4 # [DYNAMIC]
+            gamma: 8 # [DYNAMIC]
+            auto_exposure_gain: true # [DYNAMIC]
+            exposure: 80 # [DYNAMIC]
+            gain: 80 # [DYNAMIC]
+            auto_whitebalance: true # [DYNAMIC]
+            whitebalance_temperature: 42 # [DYNAMIC] - [28,65] works only if `auto_whitebalance` is false
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT -
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE
+
+        depth:
+            depth_mode: 'NONE' # Matches the ZED SDK setting: 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL' - Note: if 'NONE' all the modules that requires depth extraction are disabled by default (Pos. Tracking, Obj. Detection, Mapping, ...)
+            depth_stabilization: 1 # Forces positional tracking to start if major than 0 - Range: [0,100]
+            openni_depth_mode: false # 'false': 32bit float [meters], 'true': 16bit unsigned int [millimeters]
+            point_cloud_freq: 10.0 # [DYNAMIC] - frequency of the pointcloud publishing (equal or less to `grab_frame_rate` value)
+            depth_confidence: 50 # [DYNAMIC]
+            depth_texture_conf: 100 # [DYNAMIC]
+            remove_saturated_areas: true # [DYNAMIC]
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT -
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE 
+
+        pos_tracking:
+            pos_tracking_enabled: false # True to enable positional tracking from start            
+            imu_fusion: true # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
+            publish_tf: true # [usually overwritten by launch file] publish `odom -> base_link` TF
+            publish_map_tf: true # [usually overwritten by launch file] publish `map -> odom` TF
+            publish_imu_tf: true # [usually overwritten by launch file] enable/disable the IMU TF broadcasting
+            base_frame: "base_link" # usually overwritten by launch file
+            map_frame: "map"
+            odometry_frame: "odom"
+            area_memory_db_path: ""
+            area_memory: true # Enable to detect loop closure
+            depth_min_range: 0.0 # Set this value for removing fixed zones of the robot in the FoV of the camerafrom the visual odometry evaluation
+            set_as_static: false # If 'true' the camera will be static and not move in the environment
+            set_gravity_as_origin: true # If 'true' align the positional tracking world to imu gravity measurement. Keep the yaw from the user initial pose.
+            floor_alignment: false # Enable to automatically calculate camera/floor offset
+            initial_base_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # Initial position of the `base_frame` in the map -> [X, Y, Z, R, P, Y]
+            init_odom_with_first_valid_pose: true # Enable to initialize the odometry with the first valid pose
+            path_pub_rate: 2.0 # [DYNAMIC] - Camera trajectory publishing frequency
+            path_max_count: -1 # use '-1' for unlimited path size
+            two_d_mode: false # Force navigation on a plane. If true the Z value will be fixed to "fixed_z_value", roll and pitch to zero
+            fixed_z_value: 0.00 # Value to be used for Z coordinate if `two_d_mode` is true
+            transform_time_offset: 0.0 # The value added to the timestamp of `map->odom` and `odom->base_link`` transform being generated
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE
+
+        gnss_fusion:
+            gnss_fusion_enabled: false # fuse 'sensor_msg/NavSatFix' message information into pose data
+            gnss_fix_topic: "/gps/fix" # Name of the GNSS topic of type NavSatFix to subscribe [Default: "/gps/fix"]
+            gnss_init_distance: 5.0 # The minimum distance traveled by the robot required to initilize the GNSS fusion
+            gnss_zero_altitude: false # Set to `true` to ignore GNSS altitude information
+            gnss_frame: "gnss_link" # [usually overwritten by launch file] The TF frame of the GNSS sensor
+            publish_utm_tf: true # Publish `utm` -> `map` TF
+            broadcast_utm_transform_as_parent_frame: false # if 'true' publish `utm` -> `map` TF, otherwise `map` -> `utm`
+
+        mapping:
+            mapping_enabled: false # True to enable mapping and fused point cloud pubblication
+            resolution: 0.05 # maps resolution in meters [min: 0.01f - max: 0.2f]
+            max_mapping_range: 5.0 # maximum depth range while mapping in meters (-1 for automatic calculation) [2.0, 20.0]
+            fused_pointcloud_freq: 1.0 # frequency of the publishing of the fused colored point cloud
+            clicked_point_topic: "/clicked_point" # Topic published by Rviz when a point of the cloud is clicked. Used for plane detection
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT -
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE
+
+        sensors:
+            sensors_image_sync: false # Synchronize Sensors messages with latest published video/depth message
+            sensors_pub_rate: 200. # frequency of publishing of sensors data. MAX: 400. - MIN: grab rate
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT -
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE
+
+        object_detection:
+            od_enabled: false # True to enable Object Detection
+            model: 'MULTI_CLASS_BOX_MEDIUM' # 'MULTI_CLASS_BOX_FAST', 'MULTI_CLASS_BOX_MEDIUM', 'MULTI_CLASS_BOX_ACCURATE', 'PERSON_HEAD_BOX_FAST', 'PERSON_HEAD_BOX_ACCURATE'
+            allow_reduced_precision_inference: true # Allow inference to run at a lower precision to improve runtime and memory usage
+            max_range: 20.0 # [m] Defines a upper depth range for detections
+            confidence_threshold: 50.0 # [DYNAMIC] - Minimum value of the detection confidence of an object [0,99]
+            prediction_timeout: 0.5 # During this time [sec], the object will have OK state even if it is not detected. Set this parameter to 0 to disable SDK predictions            
+            filtering_mode: 1 # '0': NONE - '1': NMS3D - '2': NMS3D_PER_CLASS
+            mc_people: false # [DYNAMIC] - Enable/disable the detection of persons for 'MULTI_CLASS_X' models
+            mc_vehicle: true # [DYNAMIC] - Enable/disable the detection of vehicles for 'MULTI_CLASS_X' models
+            mc_bag: true # [DYNAMIC] - Enable/disable the detection of bags for 'MULTI_CLASS_X' models
+            mc_animal: true # [DYNAMIC] - Enable/disable the detection of animals for 'MULTI_CLASS_X' models
+            mc_electronics: true # [DYNAMIC] - Enable/disable the detection of electronic devices for 'MULTI_CLASS_X' models
+            mc_fruit_vegetable: true # [DYNAMIC] - Enable/disable the detection of fruits and vegetables for 'MULTI_CLASS_X' models
+            mc_sport: true # [DYNAMIC] - Enable/disable the detection of sport-related objects for 'MULTI_CLASS_X' models            
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE
+        
+        body_tracking:
+            bt_enabled: false # True to enable Body Tracking
+            model: 'HUMAN_BODY_MEDIUM' # 'HUMAN_BODY_FAST', 'HUMAN_BODY_MEDIUM', 'HUMAN_BODY_ACCURATE'
+            body_format: 'BODY_38' # 'BODY_18','BODY_34','BODY_38','BODY_70'
+            allow_reduced_precision_inference: false # Allow inference to run at a lower precision to improve runtime and memory usage
+            max_range: 20.0 # [m] Defines a upper depth range for detections
+            body_kp_selection: 'FULL' # 'FULL', 'UPPER_BODY'
+            enable_body_fitting: false # Defines if the body fitting will be applied
+            enable_tracking: true # Defines if the object detection will track objects across images flow
+            prediction_timeout_s: 0.5 # During this time [sec], the skeleton will have OK state even if it is not detected. Set this parameter to 0 to disable SDK predictions
+            confidence_threshold: 50.0 # [DYNAMIC] - Minimum value of the detection confidence of skeleton key points [0,99]
+            minimum_keypoints_threshold: 5 # [DYNAMIC] - Minimum number of skeleton key points to be detected for a valid skeleton
+            qos_history: 1 # '1': KEEP_LAST - '2': KEEP_ALL
+            qos_depth: 1 # Queue size if using KEEP_LAST
+            qos_reliability: 1 # '1': RELIABLE - '2': BEST_EFFORT
+            qos_durability: 2 # '1': TRANSIENT_LOCAL - '2': VOLATILE
+
+        use_sim_time: false # EXPERIMENTAL (only for development) - Set to true to enable SIMULATION mode # 
+        sim_address: '192.168.1.90' # EXPERIMENTAL (only for development) - The local address of the machine running the simulator
+
+        debug:
+            debug_common: false
+            debug_video_depth: false
+            debug_camera_controls: false
+            debug_point_cloud: false
+            debug_positional_tracking: false
+            debug_gnss: false
+            debug_sensors: false
+            debug_mapping : false
+            debug_terrain_mapping : false
+            debug_object_detection : false
+            debug_body_tracking : false

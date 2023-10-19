@@ -20,9 +20,11 @@
 
 #include <string>
 
-#include "visualization_msgs/msg/marker_array.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "viz_helper.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -39,10 +41,9 @@ public:
   ~LocalizerVisHelper() override;
 
   void Init(
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_localizer_probes,
+    rclcpp::Publisher<MarkerArrayType>::SharedPtr publisher_localizer_probes,
     CUVSLAM_TrackerHandle cuvslam_handle,
-    const tf2::Transform & base_link_pose_cuvslam,
-    const rclcpp::Node & node,
+    const tf2::Transform & canonical_pose_cuvslam,
     const std::string & frame_id);
 
   void Reset() override;
@@ -63,10 +64,11 @@ protected:
   bool have_result_pose_ = false;
   tf2::Transform result_pose_;
 
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_localizer_probes_;
+  rclcpp::Publisher<MarkerArrayType>::SharedPtr publisher_localizer_probes_;
 };
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__LOCALIZER_VIS_HELPER_HPP_

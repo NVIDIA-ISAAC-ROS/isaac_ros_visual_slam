@@ -24,9 +24,12 @@
 #include <thread>
 
 #include "cuvslam.h"  // NOLINT - include .h without directory
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Transform.h"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -41,8 +44,7 @@ public:
 
   void Init(
     CUVSLAM_TrackerHandle cuvslam_handle,
-    const tf2::Transform & base_link_pose_cuvslam,
-    const rclcpp::Node & node,
+    const tf2::Transform & canonical_pose_cuvslam,
     const std::string & frame_id
   );
 
@@ -53,8 +55,7 @@ protected:
 
 protected:
   CUVSLAM_TrackerHandle cuvslam_handle_ = nullptr;
-  tf2::Transform base_link_pose_cuvslam_;
-  const rclcpp::Node * node_ = nullptr;
+  tf2::Transform canonical_pose_cuvslam_;
   std::string frame_id_;
 
   std::thread thread_;
@@ -64,5 +65,6 @@ protected:
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__VIZ_HELPER_HPP_

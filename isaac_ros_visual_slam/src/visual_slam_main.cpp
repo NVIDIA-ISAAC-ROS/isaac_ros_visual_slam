@@ -31,7 +31,7 @@ int main(int argc, char * argv[])
     "-p", "rectified_images:=true",
     "-p", "denoise_input_images:=false",
   });
-  auto visual_slam_node = std::make_shared<isaac_ros::visual_slam::VisualSlamNode>(
+  auto visual_slam_node = std::make_shared<nvidia::isaac_ros::visual_slam::VisualSlamNode>(
     visual_slam_options);
   exec.add_node(visual_slam_node);
 

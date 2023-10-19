@@ -23,8 +23,11 @@
 #include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -45,19 +48,18 @@ PoseGraphVisHelper::~PoseGraphVisHelper()
 }
 
 void PoseGraphVisHelper::Init(
-  const rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr publisher_nodes,
-  const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges,
-  const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_edges2,
+  const rclcpp::Publisher<PoseArrayType>::SharedPtr publisher_nodes,
+  const rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges,
+  const rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges2,
   CUVSLAM_TrackerHandle cuvslam_handle,
-  const tf2::Transform & base_link_pose_cuvslam,
-  const rclcpp::Node & node,
+  const tf2::Transform & canonical_pose_cuvslam,
   const std::string & frame_id)
 {
   publisher_nodes_ = publisher_nodes;
   publisher_edges_ = publisher_edges;
   publisher_edges2_ = publisher_edges2;
 
-  VisHelper::Init(cuvslam_handle, base_link_pose_cuvslam, node, frame_id);
+  VisHelper::Init(cuvslam_handle, canonical_pose_cuvslam, frame_id);
   thread_ = std::thread{&PoseGraphVisHelper::Run, this};
 }
 
@@ -80,9 +82,9 @@ void PoseGraphVisHelper::Run()
     if (!cuvslam_handle_) {break;}
     if (!rclcpp::ok()) {break;}
 
-    bool has_subnumber_nodes = HasSubscribers(*node_, publisher_nodes_);
-    bool has_subnumber_edges = HasSubscribers(*node_, publisher_edges_);
-    bool has_subnumber_edges2 = HasSubscribers(*node_, publisher_edges2_);
+    bool has_subnumber_nodes = HasSubscribers(publisher_nodes_);
+    bool has_subnumber_edges = HasSubscribers(publisher_edges_);
+    bool has_subnumber_edges2 = HasSubscribers(publisher_edges2_);
     if (!has_subnumber_nodes && !has_subnumber_edges && !!has_subnumber_edges2) {
       // no subcribers so disable reading
       CUVSLAM_DisableReadingDataLayer(cuvslam_handle_, layer_);
@@ -98,12 +100,12 @@ void PoseGraphVisHelper::Run()
     }
     // read data
     CUVSLAM_PoseGraphRef pose_graph;
-    if (CUVSLAM_StartReadingPoseGraph(cuvslam_handle_, layer_, &pose_graph) != CUVSLAM_SUCCESS) {
+    if (CUVSLAM_StartReadingPoseGraph(cuvslam_handle_, &pose_graph) != CUVSLAM_SUCCESS) {
       continue;
     }
     if (last_timestamp_ns_ == pose_graph.timestamp_ns) {
       // Don't need to publish now
-      CUVSLAM_FinishReadingPoseGraph(cuvslam_handle_, layer_);
+      CUVSLAM_FinishReadingPoseGraph(cuvslam_handle_);
       continue;
     }
     last_timestamp_ns_ = pose_graph.timestamp_ns;
@@ -111,7 +113,7 @@ void PoseGraphVisHelper::Run()
 
     if (has_subnumber_nodes) {
       // Publish nodes
-      nodes_msg_t msg = std::make_unique<geometry_msgs::msg::PoseArray>();
+      nodes_msg_t msg = std::make_unique<PoseArrayType>();
 
       msg->header.frame_id = frame_id_;
       msg->header.stamp = stamp;
@@ -122,10 +124,10 @@ void PoseGraphVisHelper::Run()
 
         // Change of basis vectors for pose
         const tf2::Transform ros_pos{ChangeBasis(
-            base_link_pose_cuvslam_,
+            canonical_pose_cuvslam_,
             FromcuVSLAMPose(cuvslam_pose))};
 
-        geometry_msgs::msg::Pose dst;
+        PoseType dst;
         tf2::toMsg(ros_pos, dst);
         msg->poses[i] = dst;
       }
@@ -143,13 +145,13 @@ void PoseGraphVisHelper::Run()
     }
 
     if (has_subnumber_edges) {
-      visualization_msgs::msg::Marker marker_edges;
+      MarkerType marker_edges;
       marker_edges.header.frame_id = frame_id_;
       marker_edges.header.stamp = stamp;
       marker_edges.ns = "edges";
       marker_edges.id = 0;
-      marker_edges.action = visualization_msgs::msg::Marker::ADD;
-      marker_edges.type = visualization_msgs::msg::Marker::LINE_LIST;
+      marker_edges.action = MarkerType::ADD;
+      marker_edges.type = MarkerType::LINE_LIST;
       marker_edges.pose.position.x = 0;
       marker_edges.pose.position.y = 0;
       marker_edges.pose.position.z = 0;
@@ -177,9 +179,9 @@ void PoseGraphVisHelper::Run()
         const CUVSLAM_Pose & node_from = pose_graph.nodes[it_from->second].node_pose;
         const CUVSLAM_Pose & node_to = pose_graph.nodes[it_to->second].node_pose;
         const tf2::Transform ros_from{ChangeBasis(
-            base_link_pose_cuvslam_,
+            canonical_pose_cuvslam_,
             FromcuVSLAMPose(node_from))};
-        const tf2::Transform ros_to{ChangeBasis(base_link_pose_cuvslam_, FromcuVSLAMPose(node_to))};
+        const tf2::Transform ros_to{ChangeBasis(canonical_pose_cuvslam_, FromcuVSLAMPose(node_to))};
         tf2::Vector3 zero(0, 0, 0);
         tf2::Vector3 p1 = ros_from * zero;
         tf2::Vector3 p2 = ros_to * zero;
@@ -201,13 +203,13 @@ void PoseGraphVisHelper::Run()
     }
 
     if (has_subnumber_edges2) {
-      visualization_msgs::msg::Marker marker_edges_transform;
+      MarkerType marker_edges_transform;
       marker_edges_transform.header.frame_id = frame_id_;
       marker_edges_transform.header.stamp = stamp;
       marker_edges_transform.ns = "edges";
       marker_edges_transform.id = 1;
-      marker_edges_transform.action = visualization_msgs::msg::Marker::ADD;
-      marker_edges_transform.type = visualization_msgs::msg::Marker::LINE_LIST;
+      marker_edges_transform.action = MarkerType::ADD;
+      marker_edges_transform.type = MarkerType::LINE_LIST;
       marker_edges_transform.pose.position.x = 0;
       marker_edges_transform.pose.position.y = 0;
       marker_edges_transform.pose.position.z = 0;
@@ -233,7 +235,7 @@ void PoseGraphVisHelper::Run()
 
         const CUVSLAM_Pose & node_from = pose_graph.nodes[it_from->second].node_pose;
         const tf2::Transform ros_from{ChangeBasis(
-            base_link_pose_cuvslam_,
+            canonical_pose_cuvslam_,
             FromcuVSLAMPose(node_from))};
         tf2::Vector3 zero(0, 0, 0);
         tf2::Vector3 p1 = ros_from * zero;
@@ -244,7 +246,7 @@ void PoseGraphVisHelper::Run()
         pp1.z = p1[2];
 
         const tf2::Transform ros_transform{ChangeBasis(
-            base_link_pose_cuvslam_,
+            canonical_pose_cuvslam_,
             FromcuVSLAMPose(edge.transform))};
         tf2::Vector3 p3 = ros_transform * zero;
         p3 = ros_from * p3;
@@ -259,9 +261,10 @@ void PoseGraphVisHelper::Run()
       // Publishing
       publisher_edges2_->publish(marker_edges_transform);
     }
-    CUVSLAM_FinishReadingPoseGraph(cuvslam_handle_, layer_);
+    CUVSLAM_FinishReadingPoseGraph(cuvslam_handle_);
   }
 }
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia

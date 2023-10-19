@@ -21,6 +21,8 @@
 #include "cuvslam.h"  // NOLINT - include .h without directory
 #include "tf2/LinearMath/Transform.h"
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -35,5 +37,6 @@ tf2::Transform ChangeBasis(
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__CUVSLAM_ROS_CONVERTION_HPP_

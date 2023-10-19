@@ -20,6 +20,8 @@
 
 #include <vector>
 
+namespace nvidia
+{
 namespace isaac_ros
 {
 namespace visual_slam
@@ -55,5 +57,6 @@ public:
 
 }  // namespace visual_slam
 }  // namespace isaac_ros
+}  // namespace nvidia
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__LIMITED_VECTOR_HPP_
