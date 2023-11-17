@@ -1,0 +1,18 @@
+/oak:
+  ros__parameters:
+    camera:
+      i_enable_imu: true
+      i_enable_ir: false
+      i_pipeline_type: depth
+      i_publish_tf_from_calibration: true
+    stereo:
+      i_publish_topic: false
+      i_reverse_stereo_socket_order: true
+      i_publish_synced_rect_pair: true
+      i_update_ros_base_time_on_ros_msg: true
+    left:
+      i_resolution: '400'
+      i_fps: 90.0
+    right:
+      i_resolution: '400'
+      i_fps: 90.0
