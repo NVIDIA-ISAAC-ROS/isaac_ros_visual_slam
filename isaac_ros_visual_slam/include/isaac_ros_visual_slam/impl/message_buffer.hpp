@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,16 +36,17 @@ public:
   explicit MessageBuffer(uint8_t maxsize);
   void Push(const int64_t & timestamp, const T & msg);
   T Pop();
-  size_t Size();
-  bool IsEmpty();
-  int64_t GetLastTimeStamp();
-  int64_t GetCurrentTimeStamp();
-  int64_t GetNextTimeStamp();
+  T Peek() const;
+  size_t Size() const;
+  bool IsEmpty() const;
+  int64_t GetLastTimeStamp() const;
+  int64_t GetCurrentTimeStamp() const;
+  int64_t GetNextTimeStamp() const;
   void ClearAll();
   void ClearUpto(const int64_t & timestamp);
-  std::vector<T> ClearAndGetUpto(const int64_t & start_time, const int64_t & end_time);
-  std::vector<T> GetAll();
-  std::vector<T> GetUpto(const int64_t & start_time, const int64_t & end_time);
+  std::vector<T> ClearAndGetUpto(const int64_t & timestamp);
+  std::vector<T> GetAll() const;
+  std::vector<T> GetUpto(const int64_t & start_time, const int64_t & end_time) const;
 
 private:
   // Buffer size
@@ -84,19 +85,25 @@ T MessageBuffer<T>::Pop()
 }
 
 template<typename T>
-size_t MessageBuffer<T>::Size() {return buffer_.size();}
+T MessageBuffer<T>::Peek() const
+{
+  return buffer_.front().second;
+}
 
 template<typename T>
-bool MessageBuffer<T>::IsEmpty() {return buffer_.empty();}
+size_t MessageBuffer<T>::Size() const {return buffer_.size();}
 
 template<typename T>
-int64_t MessageBuffer<T>::GetLastTimeStamp() {return last_msg_ts_;}
+bool MessageBuffer<T>::IsEmpty() const {return buffer_.empty();}
 
 template<typename T>
-int64_t MessageBuffer<T>::GetCurrentTimeStamp() {return current_msg_ts_;}
+int64_t MessageBuffer<T>::GetLastTimeStamp() const {return last_msg_ts_;}
 
 template<typename T>
-int64_t MessageBuffer<T>::GetNextTimeStamp() {return next_msg_ts_;}
+int64_t MessageBuffer<T>::GetCurrentTimeStamp() const {return current_msg_ts_;}
+
+template<typename T>
+int64_t MessageBuffer<T>::GetNextTimeStamp() const {return next_msg_ts_;}
 
 template<typename T>
 void MessageBuffer<T>::ClearAll() {buffer_.clear();}
@@ -108,15 +115,15 @@ void MessageBuffer<T>::ClearUpto(const int64_t & timestamp)
 }
 
 template<typename T>
-std::vector<T> MessageBuffer<T>::ClearAndGetUpto(
-  const int64_t & start_time, const int64_t & end_time)
+std::vector<T> MessageBuffer<T>::ClearAndGetUpto(const int64_t & timestamp)
 {
-  ClearUpto(start_time);
-  return GetUpto(start_time, end_time);
+  const auto values = GetUpto(-1, timestamp);
+  ClearUpto(timestamp);
+  return values;
 }
 
 template<typename T>
-std::vector<T> MessageBuffer<T>::GetUpto(const int64_t & start_time, const int64_t & end_time)
+std::vector<T> MessageBuffer<T>::GetUpto(const int64_t & start_time, const int64_t & end_time) const
 {
   std::vector<T> result;
   for (auto msg : buffer_) {
@@ -126,7 +133,7 @@ std::vector<T> MessageBuffer<T>::GetUpto(const int64_t & start_time, const int64
 }
 
 template<typename T>
-std::vector<T> MessageBuffer<T>::GetAll()
+std::vector<T> MessageBuffer<T>::GetAll() const
 {
   std::vector<T> result;
   for (auto msg : buffer_) {

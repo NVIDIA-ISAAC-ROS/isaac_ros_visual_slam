@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,7 @@
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "message_filters/subscriber.h"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/qos.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 
 namespace nvidia
@@ -51,114 +52,137 @@ public:
   virtual ~VisualSlamNode();
 
 private:
-  // Enable image denoising.
-  // Disable if the input images have already passed through a denoising filter.
-  bool denoise_input_images_;
+  // Functional Parameters:
+  // Number of cameras used. If a single stereocamera is used this has to be set to 2.
+  // This is the single source of truth, ie. if you set num_cameras=2 but pass 4
+  // input_camera_optical_frames we will only use the first 2.
+  const uint num_cameras_;
 
-  // Enable fast and robust left-to-right tracking for rectified
-  // cameras with principal points on the horizontal line.
-  bool rectified_images_;
+  // Multicamera mode: moderate (0), performance (1) or precision (2).
+  // Multicamera odometry settings will be adjusted depending on a chosen strategy.
+  // Default is performance (1).
+  const uint multicam_mode_;
+
+  // The minimum number of images used. This configures how many camera images can be dropped
+  // without stopping tracking.
+  const uint min_num_images_;
+
+  // Maximum value of acceptable timestamp deltas between the camera images to still consider their
+  // timestamp identical. Should be < 0.5 / fps_value.
+  const double sync_matching_threshold_ms_;
+
+  // Number of pixels on the outer edges of the frame will be masked
+  // during the feature selection stage. Values are defined for the left camera
+  // of the stereo pair (camera at even index in the list of cameras). For the right camera
+  // (camera at odd index in the list of cameras), the left and right borders will be mirrored.
+  const uint border_mask_top_;
+  const uint border_mask_bottom_;
+  const uint border_mask_left_;
+  const uint border_mask_right_;
+
+  // Disable this if the input images have already passed through a denoising filter.
+  const bool enable_image_denoising_;
+
+  // Enable fast and robust left-to-right tracking for rectified cameras with
+  // principal points on the horizontal line. Disable this if input images are
+  // not already rectified.
+  const bool rectified_images_;
+
+  // If enabled, visual odometry poses will be modified such that the camera moves
+  // on a horizontal plane.
+  const bool enable_ground_constraint_in_odometry_;
+
+  // If enabled, slam poses will be modified such that the camera moves on a horizontal plane.
+  const bool enable_ground_constraint_in_slam_;
+
+  // Use localization and mapping (SLAM).
+  // If it is false, it is only Visual Odometry and no map will get produced.
+  const bool enable_localization_n_mapping_;
 
   // Enable IMU fusion mode
-  bool enable_imu_fusion_;
+  const bool enable_imu_fusion_;
+
+  // Enable IMU debug mode
+  const bool enable_debug_imu_mode_;
 
   // Data structure to store imu noise params
-  IMUParams imu_params_;
+  const IMUParams imu_params_;
 
   // Minimum value of acceptable jitter (delta between current and previous timestamps)
   // Ideally it should be equal to (1 / fps_value). cuVSLAM library will print out warning messages
   // if rate of incoming image pair is lower than the threshold value.
-  double img_jitter_threshold_ms_;
+  const double image_jitter_threshold_ms_;
 
   // Minimum value of acceptable jitter (delta between current and previous timestamps)
   // Ideally it should be equal to (1 / fps_value).
-  double imu_jitter_threshold_ms_;
+  const double imu_jitter_threshold_ms_;
 
-  // If enabled, prints logs from cuVSLAM library
-  bool enable_verbosity_;
+  // This node assumes the following frame hierarchy:
+  // map - odom - base - ... - camera_i
+  const std::string map_frame_;
+  const std::string odom_frame_;
+  const std::string base_frame_;
 
-  // If enabled, slam poses will be modified such that the camera moves on a horizontal plane.
-  bool force_planar_mode_;
+  // Per default the frames from the camera info messages will be used. Use this parameter to
+  // override this.
+  const std::vector<std::string> camera_optical_frames_;
 
+  // Per default the frame from the imu message will be used. Use this parameter to override this.
+  const std::string imu_frame_;
 
-  // Enable view observations
-  bool enable_observations_view_;
+  // Message Parameters:
+  // Buffer size of image buffer used in synchronizer.
+  const uint image_buffer_size_;
 
-  // Enable view landmarks for map and loop closure events
-  bool enable_landmarks_view_;
+  // Buffer size of imu buffer.
+  const uint imu_buffer_size_;
 
-  // Enable this flag to dump the image frames, timestamp and camerainfo at the location specified
-  // by debug_dump_path_
-  bool enable_debug_mode_;
+  // The QoS used for the image and subscriptions
+  const rclcpp::QoS image_qos_;
+  const rclcpp::QoS imu_qos_;
 
-  // Path to directory to store the dump data. It will be used when enable_debug_mode_ is true.
+  // Output Parameters:
+  // Enable this to override the timestamps of all outputs to the current time.
+  // This is helpful when playing back with rosbags and allows to ignore the
+  // recording time.
+  const bool override_publishing_stamp_;
+
+  // Publish output frames hierarchy.
+  const bool publish_map_to_odom_tf_;
+  const bool publish_odom_to_base_tf_;
+
+  // Invert the odom -> base transform published to the tf tree.
+  // This is useful for maintaining the one-parent rule in systems with multiple odometry sources.
+  const bool invert_map_to_odom_tf_;
+  const bool invert_odom_to_base_tf_;
+
+  // Debug/Visualization Parameters:
+  // Enable slam data visualization (Landmarks, Pose Graph, etc).
+  // Demands additional hardware resources.
+  const bool enable_slam_visualization_;
+
+  // Enable view observations.
+  const bool enable_observations_view_;
+
+  // Enable view landmarks for map and loop closure events.
+  const bool enable_landmarks_view_;
+
+  // Max size of the buffer for pose trail visualization.
+  const uint path_max_size_;
+
+  // Verbosity for cuvslam, the larger the more verbose.
+  const int verbosity_;
+
+  // Enable this flag to dump the received images, imu messages, timestamps and
+  // camera infos at the location specified by debug_dump_path_.
+  const bool enable_debug_mode_;
+
+  // Path to directory to store the dump data. Only used when enable_debug_mode_ is true.
   const std::string debug_dump_path_;
 
-  // Use localization and mapping.
-  // If it is false, it is only Visual Odometry and no map will get produced
-  // Default: true
-  bool enable_localization_n_mapping_;
-
-  // Enable slam data visualization (Landmarks, Pose Graph, etc).
-  // Demands additional hardware resources
-  bool enable_slam_visualization_;
-
-  // Name of frame (baselink) to calculate transformation between baselink and left camera
-  // Default is empty, which means the value of base_frame_ will be used.
-  // If input_base_frame_ and base_frame_ are both empty the left camera is assumed to be in
-  // the robot's center.
-  const std::string input_base_frame_;
-
-  // Defines the name of the left camera frame.
-  // It is used to calculate the left_pose_right camera extrinsics.
-  // Default is empty, which means the left camera is in the robot's center and
-  // left_pose_right will be calculated from CameraInfo
-  const std::string input_left_camera_frame_;
-
-  // Defines the name of the right camera frame.
-  // It is used to calculate the left_pose_right camera extrinsics.
-  // Default is empty, which means left and right cameras has identity rotation and
-  // horizontally aligned, so left_pose_right will be calculated from CameraInfo
-  // See camera matrix info for more details : https://docs.ros2.org/humble/api/sensor_msgs/msg/CameraInfo.html
-  const std::string input_right_camera_frame_;
-
-  // Defines the name of the IMU camera frame used to calculate left_camera_pose_imu
-  // The IMU to left camera transformation
-  const std::string input_imu_frame_;
-
-  // Publish output frames hierarchy. Default is true.
-  bool publish_odom_to_base_tf_;
-  bool publish_map_to_odom_tf_;
-
-  // Invert the odom -> base_frame transform published to the tf tree.
-  // This is useful for maintaining the one-parent rule in systems with multiple odometry sources.
-  bool invert_odom_to_base_tf_ = false;
-  bool invert_map_to_odom_tf_ = false;
-
-  // Output frames hierarchy:
-  // map - odom - base_link - ... - camera
-  const std::string map_frame_ = "map";
-  const std::string odom_frame_ = "odom";
-  const std::string base_frame_ = "base_link";
-
-  // When override_publishing_stamp_ is true, it will help in using a ros bag file with current
-  // timestamp and ignoring the recording time.
-  bool override_publishing_stamp_ = false;
-
-  // Max size of the buffer for pose trail visualization
-  const uint path_max_size_ = 1024;
-
-  // Message filter queue size
-  const uint msg_filter_queue_size_;
-
-  // The QoS used for the image subscriptions
-  const rmw_qos_profile_t image_qos_;
-
   // Subscribers
-  message_filters::Subscriber<ImageType> left_image_sub_;
-  message_filters::Subscriber<CameraInfoType> left_camera_info_sub_;
-  message_filters::Subscriber<ImageType> right_image_sub_;
-  message_filters::Subscriber<CameraInfoType> right_camera_info_sub_;
+  const std::vector<std::shared_ptr<NitrosImageViewSubscriber>> image_subs_;
+  const std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> camera_info_subs_;
   const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
 
   // Publishers: Visual SLAM
@@ -169,6 +193,7 @@ private:
   const rclcpp::Publisher<OdometryType>::SharedPtr tracking_odometry_pub_;
   const rclcpp::Publisher<PathType>::SharedPtr tracking_vo_path_pub_;
   const rclcpp::Publisher<PathType>::SharedPtr tracking_slam_path_pub_;
+  const rclcpp::Publisher<DiagnosticArrayType>::SharedPtr diagnostics_pub_;
 
   // Visualization for odometry
   const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_observations_pub_;
@@ -192,7 +217,7 @@ private:
   // Slam Services
   const rclcpp::Service<SrvReset>::SharedPtr reset_srv_;
   const rclcpp::Service<SrvGetAllPoses>::SharedPtr get_all_poses_srv_;
-  const rclcpp::Service<SrvSetOdometryPose>::SharedPtr set_odometry_pose_srv_;
+  const rclcpp::Service<SrvSetSlamPose>::SharedPtr set_slam_pose_srv_;
 
   void CallbackReset(
     const std::shared_ptr<SrvReset::Request> req,
@@ -200,9 +225,9 @@ private:
   void CallbackGetAllPoses(
     const std::shared_ptr<SrvGetAllPoses::Request> req,
     std::shared_ptr<SrvGetAllPoses::Response> res);
-  void CallbackSetOdometryPose(
-    const std::shared_ptr<SrvSetOdometryPose::Request> req,
-    std::shared_ptr<SrvSetOdometryPose::Response> res);
+  void CallbackSetSlamPose(
+    const std::shared_ptr<SrvSetSlamPose::Request> req,
+    std::shared_ptr<SrvSetSlamPose::Response> res);
 
   // SaveMap Action
   rclcpp_action::Server<ActionSaveMap>::SharedPtr save_map_server_;
@@ -225,26 +250,13 @@ private:
   void CallbackLoadMapAndLocalizeAccepted(
     const std::shared_ptr<GoalHandleLoadMapAndLocalize> goal_handle);
 
-  // Callback function for images
-  void ReadImageData(
-    const ImageType::ConstSharedPtr & msg_left_img,
-    const CameraInfoType::ConstSharedPtr & msg_left_camera_info,
-    const ImageType::ConstSharedPtr & msg_right_img,
-    const CameraInfoType::ConstSharedPtr & msg_right_camera_info);
-
-  // Callback funtion for imu
-  void ReadImuData(const ImuType::ConstSharedPtr msg_imu);
-
-  // Callback function for interleaved imu and image messages
-
-  void ComputePose(
-    const std::vector<ImuType::ConstSharedPtr> imu_msgs,
-    const std::pair<ImageType::ConstSharedPtr, ImageType::ConstSharedPtr> image_pair);
+  // Callback functions for sensors
+  void CallbackImu(const ImuType::ConstSharedPtr & msg);
+  void CallbackImage(int index, const ImageType & msg);
+  void CallbackCameraInfo(int index, const CameraInfoType::ConstSharedPtr & msg);
 
   struct VisualSlamImpl;
   std::unique_ptr<VisualSlamImpl> impl_;
-
-  bool valid_cuvslam_api_ = true;
 };
 
 }  // namespace visual_slam

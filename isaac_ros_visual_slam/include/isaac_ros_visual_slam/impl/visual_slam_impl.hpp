@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,22 +19,25 @@
 #define ISAAC_ROS_VISUAL_SLAM__IMPL__VISUAL_SLAM_IMPL_HPP_
 
 #include <list>
+#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "cuvslam.h"  // NOLINT - include .h without directory
+#include "ground_constraint.h"  // NOLINT - include .h without directory
 #include "cv_bridge/cv_bridge.h"
 #include "isaac_ros_visual_slam/impl/landmarks_vis_helper.hpp"
 #include "isaac_ros_visual_slam/impl/localizer_vis_helper.hpp"
+#include "isaac_ros_visual_slam/impl/message_stream_synchronizer.hpp"
 #include "isaac_ros_visual_slam/impl/message_stream_sequencer.hpp"
 #include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
 #include "isaac_ros_visual_slam/impl/pose_cache.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "isaac_ros_visual_slam/impl/limited_vector.hpp"
 #include "isaac_ros_visual_slam/visual_slam_node.hpp"
-#include "message_filters/synchronizer.h"
-#include "message_filters/sync_policies/exact_time.h"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Transform.h"
 #include "tf2_ros/buffer.h"
@@ -49,13 +52,7 @@ namespace isaac_ros
 namespace visual_slam
 {
 
-constexpr int32_t kNumCameras = 2;
 constexpr int32_t kMaxNumCameraParameters = 12;
-
-constexpr int32_t LEFT_CAMERA_IDX = 0;
-constexpr int32_t RIGHT_CAMERA_IDX = 1;
-
-double NanoToMilliSeconds(int64_t nano_sec);
 
 struct VisualSlamNode::VisualSlamImpl
 {
@@ -63,111 +60,86 @@ struct VisualSlamNode::VisualSlamImpl
 
   ~VisualSlamImpl();
 
-  void Init(
-    const CameraInfoType::ConstSharedPtr & msg_left_ci,
-    const CameraInfoType::ConstSharedPtr & msg_right_ci);
+  // Helpers to initialize the cuvslam tracker.
+  void Initialize();
+
+  bool IsReadyForInitialization() const;
+
+  bool IsInitialized() const;
+
   void Exit();
 
-  CUVSLAM_Configuration GetConfiguration(const CUVSLAM_Pose & imu_from_camera);
+  // Create the configuration for the cuvslam tracker.
+  CUVSLAM_Configuration CreateConfiguration(const CUVSLAM_Pose & cv_base_link_pose_cv_imu);
 
-  void SetcuVSLAMCameraPose(CUVSLAM_Camera & cam, const CUVSLAM_Pose & cuvslam_pose);
-
-  void ReadCameraIntrinsics(
-    const CameraInfoType::ConstSharedPtr & msg_ci, CUVSLAM_Camera & cuvslam_camera,
-    std::array<float, kMaxNumCameraParameters> & intrinsics);
-
-  CUVSLAM_Image TocuVSLAMImage(
-    int32_t camera_index, const cv::Mat & image, const int64_t & acqtime_ns);
-
-  CUVSLAM_ImuMeasurement TocuVSLAMImuMeasurement(const ImuType::ConstSharedPtr & msg_imu);
-
+  // Helper function to publish a transform to the tf tree.
   void PublishFrameTransform(
     rclcpp::Time stamp, const tf2::Transform & pose, const std::string & target,
-    const std::string & source, bool is_static = false);
+    const std::string & source);
 
+  // Helper to get a transform from the tf tree.
   tf2::Transform GetFrameTransform(
     rclcpp::Time stamp, const std::string & target, const std::string & source);
 
+  // Helper to publish the estimated velocity from odometry.
   void PublishOdometryVelocity(
     rclcpp::Time stamp, const std::string & frame_id,
     const rclcpp::Publisher<MarkerArrayType>::SharedPtr publisher);
 
+  // Helper to publish the estimated gravity vector.
   void PublishGravity(
     rclcpp::Time stamp, const std::string & frame_id,
     const rclcpp::Publisher<MarkerType>::SharedPtr publisher);
 
-  bool IsInitialized();
-
+  // Callback for cuvslam's API to localize in an existing map.
   static void LocalizeInExistDbResponse(
     void * context, CUVSLAM_Status status, const CUVSLAM_Pose * pose_in_db);
 
+  // Callback for cuvslam's API to store a map to disk.
   static void SaveToSlamDbResponse(void * context, CUVSLAM_Status status);
 
-  bool IsJitterAboveThreshold(double threshold);
+  // Callbacks for subscribers.
+  void CallbackImu(const ImuType::ConstSharedPtr & msg);
 
-  void TrackAndGetPose(
-    const ImageType::ConstSharedPtr & msg_left_img,
-    const ImageType::ConstSharedPtr & msg_right_img);
+  void CallbackImage(int index, const ImageType & image_view);
 
-  void RegisterImu(const ImuType::ConstSharedPtr & msg_imu);
+  void CallbackCameraInfo(int index, const CameraInfoType::ConstSharedPtr & msg);
 
-  // Reference to the ros node
+  // Callback for synchronizer.
+  void CallbackSynchronizedImages(
+    int64_t current_ts, const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs);
+
+  // Callback for sequencer
+  void UpdatePose(
+    const std::vector<ImuType::ConstSharedPtr> & imu_msgs,
+    const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs);
+
+  // Reference to the ros node.
   VisualSlamNode & node;
 
-  // Message filter policy to be applied to the synchronizer
-  // to synchronize the incoming messages on the topics.
-  using ExactTime = message_filters::sync_policies::ExactTime<
-    ImageType, CameraInfoType, ImageType, CameraInfoType>;
-  using Synchronizer = message_filters::Synchronizer<ExactTime>;
-  std::shared_ptr<Synchronizer> sync;
+  // Synchronizer used to sync all image messages.
+  using Synchronizer = MessageStreamSynchronizer<ImageType>;
+  Synchronizer sync;
+
+  // Sequencer used to sequence imu and image messages.
+  using Sequencer = MessageStreamSequencer<ImuType::ConstSharedPtr,
+      std::vector<std::pair<int, ImageType>>>;
+  Sequencer sequencer;
 
   // cuVSLAM handle to call cuVSLAM API.
   CUVSLAM_TrackerHandle cuvslam_handle = nullptr;
+  CUVSLAM_GroundConstraintHandle ground_constraint_handle = nullptr;
 
   // Define number of cameras for cuVSLAM. 2 for stereo camera.
-  std::array<CUVSLAM_Camera, kNumCameras> cuvslam_cameras;
+  std::vector<CUVSLAM_Camera> cuvslam_cameras;
 
-  // Define number of images used for tracking
-  std::array<CUVSLAM_Image, kNumCameras> cuvslam_images;
+  // Define camera parameters for all cameras.
+  std::vector<std::array<float, kMaxNumCameraParameters>> intrinsics;
 
-  // Define camera parameters for stereo camera.
-  std::array<float, kMaxNumCameraParameters> left_intrinsics;
-  std::array<float, kMaxNumCameraParameters> right_intrinsics;
-  // Transformation converting from
-  // Canonical ROS Frame (x-forward, y-left, z-up) to
-  // cuVSLAM Frame       (x-right, y-up, z-backward)
-  const tf2::Transform cuvslam_pose_canonical;
-
-  // Transformation converting from
-  // cuVSLAM Frame       (x-right, y-up, z-backward) to
-  // Canonical ROS Frame (x-forward, y-left, z-up)
-  const tf2::Transform canonical_pose_cuvslam;
-
-  // Transformation converting from
-  // Optical Frame    (x-right, y-down, z-forward) to
-  // cuVSLAM Frame    (x-right, y-up, z-backward)
-  const tf2::Transform cuvslam_pose_optical;
-
-  // Transformation converting from
-  // cuVSLAM Frame    (x-right, y-up, z-backward) to
-  // Optical Frame    (x-right, y-down, z-forward)
-  const tf2::Transform optical_pose_cuvslam;
-
-  // Initial configuration of the frames
-  tf2::Transform initial_odom_pose_left = tf2::Transform::getIdentity();
-  tf2::Transform initial_map_pose_left = tf2::Transform::getIdentity();
-  tf2::Transform base_link_pose_left = tf2::Transform::getIdentity();
-
-  // Buffer for tf2.
+  // Helper classes for tf listening and publishing.
   std::unique_ptr<tf2_ros::Buffer> tf_buffer{nullptr};
-
-  // Listener for tf2. It takes in data from tf2 buffer.
-  std::shared_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
-
-  // Publisher for tf2.
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_publisher{nullptr};
-
-  // Publisher for static tf2 tranform.
   std::unique_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_publisher{nullptr};
 
   limited_vector<PoseStampedType> vo_path;
@@ -199,15 +171,12 @@ struct VisualSlamNode::VisualSlamImpl
   // Container to calulate execution time statictics.
   limited_vector<double> track_execution_times;
 
-  // Container to store delta between camera frames timestamp.
-  limited_vector<double> delta_ts;
+  // Timestamp of the last time CUVSLAM_Track was called in nanoseconds.
+  int64_t last_track_ts;
 
-  // Last timestamp of the image message in nanoseconds
-  int64_t last_img_ts;
-
-  // Data structure to interleave imu and pair of image messages
-  MessageStreamSequencer<ImuType::ConstSharedPtr, std::pair<ImageType::ConstSharedPtr,
-    ImageType::ConstSharedPtr>> stream_sequencer;
+  // Initial messages required for initialization.
+  std::optional<ImuType::ConstSharedPtr> initial_imu_message;
+  std::map<int, std::optional<CameraInfoType::ConstSharedPtr>> initial_camera_info_messages;
 
   // Asynchronous response for CUVSLAM_LocalizeInExistDb()
   struct LocalizeInExistDbContext

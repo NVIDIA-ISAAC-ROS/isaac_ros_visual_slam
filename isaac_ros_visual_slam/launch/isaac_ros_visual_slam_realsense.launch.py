@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,29 +47,29 @@ def generate_launch_description():
         package='isaac_ros_visual_slam',
         plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         parameters=[{
-                    'denoise_input_images': False,
+                    'enable_image_denoising': False,
                     'rectified_images': True,
-                    'enable_debug_mode': False,
-                    'debug_dump_path': '/tmp/cuvslam',
-                    'enable_slam_visualization': True,
-                    'enable_landmarks_view': True,
-                    'enable_observations_view': True,
-                    'map_frame': 'map',
-                    'odom_frame': 'odom',
-                    'base_frame': 'camera_link',
-                    'input_imu_frame': 'camera_gyro_optical_frame',
                     'enable_imu_fusion': True,
                     'gyro_noise_density': 0.000244,
                     'gyro_random_walk': 0.000019393,
                     'accel_noise_density': 0.001862,
                     'accel_random_walk': 0.003,
                     'calibration_frequency': 200.0,
-                    'img_jitter_threshold_ms': 22.00
+                    'image_jitter_threshold_ms': 22.00,
+                    'base_frame': 'camera_link',
+                    'imu_frame': 'camera_gyro_optical_frame',
+                    'enable_slam_visualization': True,
+                    'enable_landmarks_view': True,
+                    'enable_observations_view': True,
+                    'camera_optical_frames': [
+                        'camera_infra1_optical_frame',
+                        'camera_infra2_optical_frame',
+                    ],
                     }],
-        remappings=[('stereo_camera/left/image', 'camera/infra1/image_rect_raw'),
-                    ('stereo_camera/left/camera_info', 'camera/infra1/camera_info'),
-                    ('stereo_camera/right/image', 'camera/infra2/image_rect_raw'),
-                    ('stereo_camera/right/camera_info', 'camera/infra2/camera_info'),
+        remappings=[('visual_slam/image_0', 'camera/infra1/image_rect_raw'),
+                    ('visual_slam/camera_info_0', 'camera/infra1/camera_info'),
+                    ('visual_slam/image_1', 'camera/infra2/image_rect_raw'),
+                    ('visual_slam/camera_info_1', 'camera/infra2/camera_info'),
                     ('visual_slam/imu', 'camera/imu')]
     )
 
@@ -78,9 +78,7 @@ def generate_launch_description():
         namespace='',
         package='rclcpp_components',
         executable='component_container',
-        composable_node_descriptions=[
-            visual_slam_node
-        ],
+        composable_node_descriptions=[visual_slam_node],
         output='screen'
     )
 

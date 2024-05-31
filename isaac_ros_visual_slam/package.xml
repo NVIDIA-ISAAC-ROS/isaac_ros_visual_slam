@@ -21,27 +21,34 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>isaac_ros_visual_slam</name>
-  <version>2.1.0</version>
+  <version>3.0.0</version>
   <description>Visual SLAM Package</description>
-  <maintainer email="swani@nvidia.com">Swapnesh Wani</maintainer>
+  <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
   <url type="website">https://developer.nvidia.com/isaac-ros-gems/</url>
   <author>Swapnesh Wani</author>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
+  <depend>cv_bridge</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>isaac_ros_gxf</depend>
+  <depend>isaac_ros_managed_nitros</depend>
+  <depend>isaac_ros_nitros</depend>
+  <depend>isaac_ros_nitros_image_type</depend>
+  <depend>isaac_ros_visual_slam_interfaces</depend>
+  <depend>message_filters</depend>
+  <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
-  <depend>cv_bridge</depend>
   <depend>sensor_msgs</depend>
   <depend>tf2_geometry_msgs</depend>
-  <depend>tf2_ros</depend>
   <depend>tf2_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <depend>nav_msgs</depend>
+  <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
-  <depend>isaac_ros_nitros</depend>
-  <depend>isaac_ros_visual_slam_interfaces</depend>
+
+  <exec_depend>isaac_ros_image_proc</exec_depend>
 
   <build_depend>isaac_ros_common</build_depend>
 
@@ -49,6 +56,7 @@
   <test_depend>ament_lint_common</test_depend>
   <test_depend>isaac_ros_test</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>isaac_ros_h264_decoder</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ set(MSG_FILES
 set(SRV_FILES
   "srv/GetAllPoses.srv"
   "srv/Reset.srv"
-  "srv/SetOdometryPose.srv"
+  "srv/SetSlamPose.srv"
 )
 set(ACTION_FILES
   "action/LoadMapAndLocalize.action"

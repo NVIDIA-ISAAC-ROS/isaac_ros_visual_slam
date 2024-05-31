@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,21 +26,6 @@ def generate_launch_description():
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
         plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
-        remappings=[('/stereo_camera/left/camera_info', '/camera_info_left'),
-                    ('/stereo_camera/right/camera_info', '/camera_info_right')],
-        parameters=[{
-                    'use_sim_time': False,
-                    'denoise_input_images': True,
-                    'rectified_images': True,
-                    'enable_slam_visualization': True,
-                    'enable_observations_view': True,
-                    'enable_landmarks_view': True,
-                    'enable_debug_mode': False,
-                    'debug_dump_path': '/tmp/cuvslam',
-                    'map_frame': 'map',
-                    'odom_frame': 'odom',
-                    'base_frame': 'base_link'
-                    }]
     )
 
     visual_slam_launch_container = ComposableNodeContainer(
@@ -48,9 +33,7 @@ def generate_launch_description():
         namespace='',
         package='rclcpp_components',
         executable='component_container',
-        composable_node_descriptions=[
-            visual_slam_node
-        ],
+        composable_node_descriptions=[visual_slam_node],
         output='screen'
     )
 

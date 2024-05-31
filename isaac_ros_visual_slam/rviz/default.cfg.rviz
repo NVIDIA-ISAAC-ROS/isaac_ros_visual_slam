@@ -1,6 +1,6 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 172
+    Help Height: 138
     Name: Displays
     Property Tree Widget:
       Expanded:
@@ -10,10 +10,9 @@ Panels:
         - /Loop closure1/Topic1
         - /Localizer1/Localizer Map1
         - /Odometry1/Shape1
-        - /Left Image1
-        - /Right Image1
+        - /Front Right Image1/Topic1
       Splitter Ratio: 0.5261569619178772
-    Tree Height: 256
+    Tree Height: 992
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -54,11 +53,85 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        back_2d_lidar:
+          Value: true
+        back_stereo_camera:
+          Value: true
+        back_stereo_camera_left_optical:
+          Value: true
+        back_stereo_camera_right_optical:
+          Value: true
         base_link:
           Value: true
-        map:
+        chassis_imu:
           Value: true
-        odom:
+        front_2d_lidar:
+          Value: true
+        front_3d_lidar:
+          Value: true
+        front_fisheye_camera:
+          Value: true
+        front_fisheye_camera_optical:
+          Value: true
+        front_stereo_camera:
+          Value: true
+        front_stereo_camera_imu:
+          Value: true
+        front_stereo_camera_left:
+          Value: true
+        front_stereo_camera_left_optical:
+          Value: true
+        front_stereo_camera_right:
+          Value: true
+        front_stereo_camera_right_optical:
+          Value: true
+        left_fisheye_camera:
+          Value: true
+        left_fisheye_camera_optical:
+          Value: true
+        left_stereo_camera:
+          Value: true
+        left_stereo_camera_imu:
+          Value: true
+        left_stereo_camera_left:
+          Value: true
+        left_stereo_camera_left_optical:
+          Value: true
+        left_stereo_camera_right:
+          Value: true
+        left_stereo_camera_right_optical:
+          Value: true
+        rear_fisheye_camera:
+          Value: true
+        rear_fisheye_camera_optical:
+          Value: true
+        rear_stereo_camera:
+          Value: true
+        rear_stereo_camera_imu:
+          Value: true
+        rear_stereo_camera_left:
+          Value: true
+        rear_stereo_camera_left_optical:
+          Value: true
+        rear_stereo_camera_right:
+          Value: true
+        rear_stereo_camera_right_optical:
+          Value: true
+        right_fisheye_camera:
+          Value: true
+        right_fisheye_camera_optical:
+          Value: true
+        right_stereo_camera:
+          Value: true
+        right_stereo_camera_imu:
+          Value: true
+        right_stereo_camera_left:
+          Value: true
+        right_stereo_camera_left_optical:
+          Value: true
+        right_stereo_camera_right:
+          Value: true
+        right_stereo_camera_right_optical:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -66,10 +139,7 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        map:
-          odom:
-            base_link:
-              {}
+        {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/Marker
@@ -270,7 +340,7 @@ Visualization Manager:
           Enabled: true
           Name: PG Edges2
           Namespaces:
-            edges: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -283,7 +353,7 @@ Visualization Manager:
           Enabled: true
           Name: PG Edges
           Namespaces:
-            edges: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -387,8 +457,7 @@ Visualization Manager:
       Enabled: true
       Name: Velocity
       Namespaces:
-        angular velocity: true
-        linear velocity: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -401,42 +470,56 @@ Visualization Manager:
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Left Image
+      Name: Front Left Image
       Normalize Range: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /stereo_camera/left/image
-      Value: true
-    - Class: rviz_default_plugins/Image
-      Enabled: true
-      Max Value: 1
-      Median window: 5
-      Min Value: 0
-      Name: Right Image
-      Normalize Range: true
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /stereo_camera/right/image
+        Value: /left/image_rect
       Value: true
     - Class: rviz_default_plugins/Image
       Enabled: false
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Image
+      Name: Front Right Image
       Normalize Range: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /stereo_camera/left/image
+        Value: /right/image_rect
+      Value: false
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Back Left Image
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /rear_left/image_rect
+      Value: true
+    - Class: rviz_default_plugins/Image
+      Enabled: false
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Back Right Image
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /rear_right/image_rect
       Value: false
   Enabled: true
   Global Options:
@@ -484,7 +567,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 6.531785011291504
+      Distance: 59.6401481628418
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -499,30 +582,32 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.31539833545684814
+      Pitch: 1.5047963857650757
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.285395860671997
+      Yaw: 3.1453962326049805
     Saved: ~
 Window Geometry:
+  Back Left Image:
+    collapsed: false
+  Back Right Image:
+    collapsed: false
   Displays:
     collapsed: false
-  Height: 946
+  Front Left Image:
+    collapsed: false
+  Front Right Image:
+    collapsed: false
+  Height: 2272
   Hide Left Dock: false
   Hide Right Dock: true
-  Image:
-    collapsed: false
-  Left Image:
-    collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000003e40000035cfc020000000efb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b000001e7000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d0061006700650200000403000002880000037d00000228fb0000000a0049006d00610067006502000001fc000002110000058400000296fb0000000a0049006d00610067006503000006fe000005e200000433000001fffb00000014004c00650066007400200049006d0061006700650100000228000000b60000002800fffffffb000000160052006900670068007400200049006d00610067006501000002e4000000b30000002800fffffffb0000000a0049006d00610067006500000002d0000000c70000002800ffffff00000001000001b40000035cfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b0000035c000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000003960000035c00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
-  Right Image:
-    collapsed: false
+  QMainWindow State: 000000ff00000000fd0000000400000000000003e30000084efc0200000010fb0000001200530065006c0065006300740069006f006e00000001e10000009b000000ab00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000069000004ce0000017800fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d0061006700650200000403000002880000037d00000228fb0000000a0049006d00610067006502000001fc000002110000058400000296fb0000000a0049006d00610067006503000006fe000005e200000433000001fffb0000002000460072006f006e00740020004c00650066007400200049006d0061006700650100000543000001ae0000004500fffffffb0000002200460072006f006e007400200052006900670068007400200049006d0061006700650000000658000000690000004500fffffffb0000000a0049006d00610067006500000002d0000000c70000000000000000fb0000001e004200610063006b0020004c00650066007400200049006d00610067006501000006fd000001ba0000004500fffffffb00000020004200610063006b00200052006900670068007400200049006d0061006700650000000809000000ae0000004500ffffff00000001000001b40000035cfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b0000035c0000012300fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d0065010000000000000450000000000000000000000a850000084e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
     collapsed: false
   Views:
     collapsed: true
-  Width: 1920
-  X: 0
-  Y: 27
+  Width: 3700
+  X: 140
+  Y: 54
