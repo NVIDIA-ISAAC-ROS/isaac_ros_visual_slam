@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,28 +22,50 @@ from launch_ros.descriptions import ComposableNode
 
 def generate_launch_description():
     """Launch file which brings up visual slam node configured for Isaac Sim."""
+    image_format_converter_node_left = ComposableNode(
+        package='isaac_ros_image_proc',
+        plugin='nvidia::isaac_ros::image_proc::ImageFormatConverterNode',
+        name='image_format_node_left',
+        parameters=[{
+                'encoding_desired': 'mono8',
+                'image_width': 1920,
+                'image_height': 1200
+        }],
+        remappings=[
+            ('image_raw', 'front_stereo_camera/left_rgb/image_raw'),
+            ('image', 'front_stereo_camera/left_rgb/image_raw_mono')]
+    )
+    image_format_converter_node_right = ComposableNode(
+        package='isaac_ros_image_proc',
+        plugin='nvidia::isaac_ros::image_proc::ImageFormatConverterNode',
+        name='image_format_node_right',
+        parameters=[{
+                'encoding_desired': 'mono8',
+                'image_width': 1920,
+                'image_height': 1200
+        }],
+        remappings=[
+            ('image_raw', 'front_stereo_camera/right_rgb/image_raw'),
+            ('image', 'front_stereo_camera/right_rgb/image_raw_mono')]
+    )
     visual_slam_node = ComposableNode(
         name='visual_slam_node',
         package='isaac_ros_visual_slam',
         plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
-        remappings=[('stereo_camera/left/image', 'front_stereo_camera/left_rgb/image_raw'),
-                    ('stereo_camera/left/camera_info', 'front_stereo_camera/left_rgb/camerainfo'),
-                    ('stereo_camera/right/image', 'front_stereo_camera/right_rgb/image_raw'),
-                    ('stereo_camera/right/camera_info', 'front_stereo_camera/right_rgb/camerainfo')
+        remappings=[('visual_slam/image_0', 'front_stereo_camera/left_rgb/image_raw_mono'),
+                    ('visual_slam/camera_info_0',
+                     'front_stereo_camera/left_rgb/camerainfo'),
+                    ('visual_slam/image_1', 'front_stereo_camera/right_rgb/image_raw_mono'),
+                    ('visual_slam/camera_info_1',
+                     'front_stereo_camera/right_rgb/camerainfo')
                     ],
         parameters=[{
                     'use_sim_time': True,
-                    'denoise_input_images': True,
+                    'enable_image_denoising': True,
                     'rectified_images': True,
                     'enable_slam_visualization': True,
                     'enable_observations_view': True,
                     'enable_landmarks_view': True,
-                    'enable_debug_mode': False,
-                    'debug_dump_path': '/tmp/cuvslam',
-                    'map_frame': 'map',
-                    'odom_frame': 'odom',
-                    'base_frame': 'base_link',
-                    'input_base_frame': 'base_link',
                     }]
 
     )
@@ -53,9 +75,9 @@ def generate_launch_description():
         namespace='',
         package='rclcpp_components',
         executable='component_container',
-        composable_node_descriptions=[
-            visual_slam_node,
-        ],
+        composable_node_descriptions=[visual_slam_node,
+                                      image_format_converter_node_left,
+                                      image_format_converter_node_right],
         output='screen'
     )
 

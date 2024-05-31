@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,24 +45,19 @@ endforeach()
 
 include_directories(${CUVSLAM}/include)
 add_library(cuvslam SHARED IMPORTED)
-if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  set_property(TARGET cuvslam PROPERTY IMPORTED_LOCATION ${CUVSLAM}/lib_x86_64_cuda_11_8/libcuvslam.so)
-elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  set_property(TARGET cuvslam PROPERTY IMPORTED_LOCATION ${CUVSLAM}/lib_aarch64_jetpack51/libcuvslam.so)
-endif()
+set_property(TARGET cuvslam PROPERTY IMPORTED_LOCATION ${CUVSLAM}/lib/libcuvslam.so)
 
 # visual_slam_node
 ament_auto_add_library(
   visual_slam_node SHARED
   src/visual_slam_node.cpp
-  src/impl/cuvslam_ros_convertion.cpp
+  src/impl/cuvslam_ros_conversion.cpp
   src/impl/landmarks_vis_helper.cpp
   src/impl/localizer_vis_helper.cpp
   src/impl/pose_cache.cpp
   src/impl/posegraph_vis_helper.cpp
   src/impl/visual_slam_impl.cpp
   src/impl/viz_helper.cpp
-  src/impl/qos.cpp
 )
 target_link_libraries(visual_slam_node cuvslam)
 rclcpp_components_register_nodes(visual_slam_node "nvidia::isaac_ros::visual_slam::VisualSlamNode")
@@ -75,18 +70,18 @@ ament_auto_add_executable(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} visual_slam_node)
 
 # Install cuVSLAM
-if( ${ARCHITECTURE} STREQUAL "x86_64" )
-  install(DIRECTORY ${CUVSLAM}/lib_x86_64_cuda_11_8/ DESTINATION share/cuvslam)
-elseif( ${ARCHITECTURE} STREQUAL "aarch64" )
-  install(DIRECTORY ${CUVSLAM}/lib_aarch64_jetpack51/ DESTINATION share/cuvslam)
-endif()
-set_target_properties(visual_slam_node PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
-set_target_properties(visual_slam_node PROPERTIES INSTALL_RPATH "$ORIGIN/../share/cuvslam")
+install(DIRECTORY ${CUVSLAM}/lib DESTINATION share/cuvslam)
+
+set_target_properties(visual_slam_node PROPERTIES
+  BUILD_WITH_INSTALL_RPATH TRUE
+  BUILD_RPATH_USE_ORIGIN TRUE
+  INSTALL_RPATH_USE_LINK_PATH TRUE
+  INSTALL_RPATH "$ORIGIN/../share/cuvslam")
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
-
 
   # The FindPythonInterp and FindPythonLibs modules are removed
   if(POLICY CMP0148)
@@ -94,8 +89,11 @@ if(BUILD_TESTING)
   endif()
 
   find_package(launch_testing_ament_cmake REQUIRED)
-  add_launch_test(test/isaac_ros_visual_slam_pol.py)
-  add_launch_test(test/isaac_ros_visual_slam_srv.py)
+  add_launch_test(test/isaac_ros_visual_slam_pol_single_cam_imu.py)
+  add_launch_test(test/isaac_ros_visual_slam_pol_multi_cam_imu.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv_reset.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv_get_all_poses.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv_set_slam_pose.py)
 
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(${PROJECT_NAME}_test_message_buffer test/test_message_buffer.cpp)
@@ -115,6 +113,18 @@ if(BUILD_TESTING)
   ament_target_dependencies(${PROJECT_NAME}_test_message_stream_sequencer
     std_msgs
   )
+
+  ament_add_gtest(${PROJECT_NAME}_test_message_stream_synchronizer
+    test/test_message_stream_synchronizer.cpp
+  )
+  target_include_directories(${PROJECT_NAME}_test_message_stream_synchronizer PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+  ament_target_dependencies(${PROJECT_NAME}_test_message_stream_synchronizer
+    rclcpp
+    geometry_msgs
+  )
 endif()
 
-ament_auto_package(INSTALL_TO_SHARE config launch params)
+ament_auto_package(INSTALL_TO_SHARE config launch rviz)

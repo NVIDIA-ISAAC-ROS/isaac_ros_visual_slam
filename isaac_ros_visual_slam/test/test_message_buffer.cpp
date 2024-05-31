@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -131,7 +131,7 @@ TEST_F(MessageBufferTest, TestFixedBufferSize)
 // GetUpto includes a time range which is inclusive of [start_time, end_time]
 // ClearUpto takes a timepoint uptill which all data should be cleared including the timepoint
 // ClearAndGetUpto is the combination of ClearUpto and GetUpto
-TEST_F(MessageBufferTest, TestRangeAccessAnddDelete)
+TEST_F(MessageBufferTest, TestRangeAccessAndDelete)
 {
   for (uint8_t i = 0; i < 5; i++) {
     msg_buffer.Push(timestamps[i], msgs[i]);
@@ -149,18 +149,11 @@ TEST_F(MessageBufferTest, TestRangeAccessAnddDelete)
   EXPECT_EQ(range_msgs1[1].stamp.sec, 3);
   EXPECT_EQ(range_msgs1[2].stamp.sec, 4);
 
-  auto range_msgs2 = msg_buffer.ClearAndGetUpto(-1, 10);
-  ASSERT_EQ(range_msgs2.size(), static_cast<size_t>(5));
+  auto range_msgs2 = msg_buffer.ClearAndGetUpto(3);
+  ASSERT_EQ(range_msgs2.size(), static_cast<size_t>(3));
   EXPECT_EQ(range_msgs2[0].stamp.sec, 1);
   EXPECT_EQ(range_msgs2[1].stamp.sec, 2);
   EXPECT_EQ(range_msgs2[2].stamp.sec, 3);
-  EXPECT_EQ(range_msgs2[3].stamp.sec, 4);
-  EXPECT_EQ(range_msgs2[4].stamp.sec, 5);
-
-  auto range_msgs3 = msg_buffer.ClearAndGetUpto(3, 5);
-  ASSERT_EQ(range_msgs3.size(), static_cast<size_t>(2));
-  EXPECT_EQ(range_msgs3[0].stamp.sec, 4);
-  EXPECT_EQ(range_msgs3[1].stamp.sec, 5);
 
   msg_buffer.ClearUpto(4);
   ASSERT_EQ(msg_buffer.Size(), static_cast<size_t>(1));

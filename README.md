@@ -1,6 +1,7 @@
 # Isaac ROS Visual SLAM
 
-Hardware-accelerated, simultaneous localization and mapping (SLAM) using stereo visual inertial odometry (SVIO).
+NVIDIA-accelerated, simultaneous localization and mapping (SLAM) using stereo
+visual inertial odometry (SVIO).
 
 <div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/main/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/main/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/" width="800px"/></a></div>
 
@@ -16,32 +17,32 @@ Jetson](https://gateway.on24.com/wcc/experience/elitenvidiabrill/1407606/3998202
 
 ## Overview
 
-[Isaac ROS Visual SLAM](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam) provides a high-performance, best-in-class ROS 2 package
+[Isaac ROS Visual SLAM](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam)
+provides a high-performance, best-in-class ROS 2 package
 for VSLAM (visual simultaneous localization and mapping). This package
-uses a stereo camera with an IMU to estimate odometry as an input to
-navigation. It is GPU accelerated to provide real-time, low-latency
-results in a robotics application. VSLAM provides an additional odometry
-source for mobile robots (ground based) and can be the primary odometry
-source for drones.
+uses one or more stereo cameras and optionally an IMU to estimate
+odometry as an input to navigation. It is GPU accelerated to provide
+real-time, low-latency results in a robotics application. VSLAM
+provides an additional odometry source for mobile robots
+(ground based) and can be the primary odometry source for drones.
 
 VSLAM provides a method for visually estimating the position of a robot
 relative to its start position, known as VO (visual odometry). This is
 particularly useful in environments where GPS is not available (such as
 indoors) or intermittent (such as urban locations with structures
 blocking line of sight to GPS satellites). This method is designed to
-use left and right stereo camera frames and an IMU (inertial measurement
-unit) as input. It uses input stereo image pairs to find matching key
-points in the left and right images; using the baseline between the left
-and right camera, it can estimate the distance to the key point. Using
-two consecutive input stereo image pairs, VSLAM can track the 3D motion
-of key points between the two consecutive images to estimate the 3D
-motion of the camera-which is then used to compute odometry as an output
+use multiple stereo camera frames and an IMU (inertial measurement
+unit) as input. It uses stereo image pairs to find matching key
+points. Using the baseline between the camera pairs, it can estimate
+the distance to the key point. Using consecutive images, VSLAM
+can track the motion of key points to estimate the 3D motion of the
+camera-which is then used to compute odometry as an output
 to navigation. Compared to the classic approach to VSLAM, this method
 uses GPU acceleration to find and match more key points in real-time,
 with fine tuning to minimize overall reprojection error.
 
-Key points depend on distinctive features in the left and right camera
-image that can be repeatedly detected with changes in size, orientation,
+Key points depend on distinctive features in the images
+that can be repeatedly detected with changes in size, orientation,
 perspective, lighting, and image noise. In some instances, the number of
 key points may be limited or entirely absent; for example, if the camera
 field of view is only looking at a large solid colored wall, no key
@@ -100,15 +101,19 @@ outdoor scenes.
 
 ## Performance
 
-| Sample Graph<br/><br/>                                                                                                                          | Input Size<br/><br/>     | AGX Orin<br/><br/>                                                                                                                                          | Orin NX<br/><br/>                                                                                                                                          | Orin Nano 8GB<br/><br/>                                                                                                                                      | x86_64 w/ RTX 4060 Ti<br/><br/>                                                                                                                               |
-|-------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Visual SLAM Node](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/scripts/isaac_ros_visual_slam_node.py)<br/><br/><br/><br/> | 720p<br/><br/><br/><br/> | [228 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_visual_slam_node-agx_orin.json)<br/><br/><br/>40 ms<br/><br/> | [127 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_visual_slam_node-orin_nx.json)<br/><br/><br/>74 ms<br/><br/> | [113 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_visual_slam_node-orin_nano.json)<br/><br/><br/>65 ms<br/><br/> | [456 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_visual_slam_node-nuc_4060ti.json)<br/><br/><br/>37 ms<br/><br/> |
+| Sample Graph<br/><br/>                                                                                                                                                                                                           | Input Size<br/><br/>      | Nova Carter<br/><br/>                                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Multicam Visual SLAM Live Graph](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/benchmarks/isaac_ros_perceptor_nova_benchmark/scripts/isaac_ros_visual_slam_graph.py)<br/><br/><br/>4 Hawk Cameras<br/><br/> | 1200p<br/><br/><br/><br/> | [30.0 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_4_hawk_vslam_graph-carter_v2.4.json)<br/><br/><br/><br/> |
+
+> [!Note]
+> This benchmark can only be run on a [Nova Orin](https://developer.nvidia.com/isaac/nova-orin) compatible system.
 
 ---
 
 ## Documentation
 
-Please visit the [Isaac ROS Documentation](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/index.html) to learn how to use this repository.
+Please visit the [Isaac ROS Documentation](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/index.html) to learn how to use
+this repository.
 
 ---
 
@@ -124,4 +129,4 @@ Please visit the [Isaac ROS Documentation](https://nvidia-isaac-ros.github.io/re
 
 ## Latest
 
-Update 2023-10-18: Improved stability.
+Update 2024-05-30: Add support for multi-cam VIO

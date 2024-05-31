@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,16 +21,17 @@
 #include <utility>
 #include <vector>
 
+#include "isaac_ros_common/qos.hpp"
 #include "isaac_ros_nitros/types/type_utility.hpp"
 #include "isaac_ros_visual_slam/visual_slam_node.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "isaac_ros_visual_slam/impl/visual_slam_impl.hpp"
-#include "isaac_ros_visual_slam/impl/cuvslam_ros_convertion.hpp"
+#include "isaac_ros_visual_slam/impl/cuvslam_ros_conversion.hpp"
 #include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
 #include "isaac_ros_visual_slam/impl/stopwatch.hpp"
-#include "isaac_ros_visual_slam/impl/qos.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+
 
 namespace nvidia
 {
@@ -41,119 +42,181 @@ namespace visual_slam
 
 VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
 : Node("visual_slam", options),
-  // Node parameters.
-  denoise_input_images_(declare_parameter<bool>("denoise_input_images", false)),
+  // Functional Parameters:
+  num_cameras_(declare_parameter<int>("num_cameras", 2)),
+  multicam_mode_(declare_parameter<int>("multicam_mode", 1)),
+  min_num_images_(declare_parameter<int>("min_num_images", num_cameras_)),
+  sync_matching_threshold_ms_(declare_parameter<double>("sync_matching_threshold_ms", 5.0)),
+  border_mask_top_(declare_parameter<int>("img_mask_top", 0)),
+  border_mask_bottom_(declare_parameter<int>("img_mask_bottom", 0)),
+  border_mask_left_(declare_parameter<int>("img_mask_left", 0)),
+  border_mask_right_(declare_parameter<int>("img_mask_right", 0)),
+  enable_image_denoising_(declare_parameter<bool>("enable_image_denoising", false)),
   rectified_images_(declare_parameter<bool>("rectified_images", true)),
+  enable_ground_constraint_in_odometry_(
+    declare_parameter<bool>("enable_ground_constraint_in_odometry", false)),
+  enable_ground_constraint_in_slam_(
+    declare_parameter<bool>("enable_ground_constraint_in_slam", false)),
+  enable_localization_n_mapping_(declare_parameter<bool>("enable_localization_n_mapping", true)),
   enable_imu_fusion_(declare_parameter<bool>("enable_imu_fusion", false)),
+  enable_debug_imu_mode_(declare_parameter<bool>("debug_imu_mode", false)),
   imu_params_{
     declare_parameter<double>("gyro_noise_density", 0.000244),
     declare_parameter<double>("gyro_random_walk", 0.000019393),
     declare_parameter<double>("accel_noise_density", 0.001862),
     declare_parameter<double>("accel_random_walk", 0.003),
     declare_parameter<double>("calibration_frequency", 200.0)},
-  img_jitter_threshold_ms_(declare_parameter<double>("img_jitter_threshold_ms", 33.33)),
+  image_jitter_threshold_ms_(declare_parameter<double>("image_jitter_threshold_ms", 34.0)),
   imu_jitter_threshold_ms_(declare_parameter<double>("imu_jitter_threshold_ms", 10.0)),
-  enable_verbosity_(declare_parameter<bool>("enable_verbosity", false)),
-  force_planar_mode_(declare_parameter<bool>("force_planar_mode", false)),
-  enable_observations_view_(declare_parameter<bool>("enable_observations_view", false)),
-  enable_landmarks_view_(declare_parameter<bool>("enable_landmarks_view", false)),
-  enable_debug_mode_(declare_parameter<bool>("enable_debug_mode", false)),
-  debug_dump_path_(declare_parameter<std::string>("debug_dump_path", "/tmp/cuvslam")),
-  enable_localization_n_mapping_(declare_parameter<bool>("enable_localization_n_mapping", true)),
-  enable_slam_visualization_(declare_parameter<bool>("enable_slam_visualization", false)),
-  input_base_frame_(declare_parameter<std::string>("input_base_frame", "")),
-  input_left_camera_frame_(declare_parameter<std::string>("input_left_camera_frame", "")),
-  input_right_camera_frame_(declare_parameter<std::string>("input_right_camera_frame", "")),
-  input_imu_frame_(declare_parameter<std::string>("input_imu_frame", "imu")),
-  // frames hierarchy:
-  // map - odom - base_link - ... - camera
-  publish_odom_to_base_tf_(declare_parameter<bool>("publish_odom_to_base_tf", true)),
-  publish_map_to_odom_tf_(declare_parameter<bool>("publish_map_to_odom_tf", true)),
-  invert_odom_to_base_tf_(declare_parameter<bool>("invert_odom_to_base_tf", false)),
-  invert_map_to_odom_tf_(declare_parameter<bool>("invert_map_to_odom_tf", false)),
   map_frame_(declare_parameter<std::string>("map_frame", "map")),
   odom_frame_(declare_parameter<std::string>("odom_frame", "odom")),
   base_frame_(declare_parameter<std::string>("base_frame", "base_link")),
-
+  camera_optical_frames_(declare_parameter<std::vector<std::string>>(
+      "camera_optical_frames",
+      std::vector<std::string>{})),
+  imu_frame_(declare_parameter<std::string>("imu_frame", "")),
+  // Message Parameters:
+  image_buffer_size_(declare_parameter<int>("image_buffer_size", 100)),
+  imu_buffer_size_(declare_parameter<int>("imu_buffer_size", 50)),
+  image_qos_(::isaac_ros::common::AddQosParameter(*this, "SENSOR_DATA", "image_qos")),
+  imu_qos_(::isaac_ros::common::AddQosParameter(*this, "SENSOR_DATA", "imu_qos")),
+  // Output Parameters:
   override_publishing_stamp_(declare_parameter<bool>("override_publishing_stamp", false)),
-
+  publish_map_to_odom_tf_(declare_parameter<bool>("publish_map_to_odom_tf", true)),
+  publish_odom_to_base_tf_(declare_parameter<bool>("publish_odom_to_base_tf", true)),
+  invert_map_to_odom_tf_(declare_parameter<bool>("invert_map_to_odom_tf", false)),
+  invert_odom_to_base_tf_(declare_parameter<bool>("invert_odom_to_base_tf", false)),
+  // Debug/Visualization Parameters:
+  enable_slam_visualization_(declare_parameter<bool>("enable_slam_visualization", false)),
+  enable_observations_view_(declare_parameter<bool>("enable_observations_view", false)),
+  enable_landmarks_view_(declare_parameter<bool>("enable_landmarks_view", false)),
   path_max_size_(declare_parameter<int>("path_max_size", 1024)),
-
-  msg_filter_queue_size_(declare_parameter<int>("msg_filter_queue_size", 100)),
-  image_qos_(parseQosString(declare_parameter<std::string>("image_qos", "SENSOR_DATA"))),
-  // Subscribers
-  left_image_sub_(message_filters::Subscriber<ImageType>(
-      this, "stereo_camera/left/image", image_qos_)),
-  left_camera_info_sub_(message_filters::Subscriber<CameraInfoType>(
-      this, "stereo_camera/left/camera_info")),
-  right_image_sub_(message_filters::Subscriber<ImageType>(
-      this, "stereo_camera/right/image", image_qos_)),
-  right_camera_info_sub_(message_filters::Subscriber<CameraInfoType>(
-      this, "stereo_camera/right/camera_info")),
-  imu_sub_(create_subscription<ImuType>(
-      "visual_slam/imu", rclcpp::QoS(100),
-      std::bind(&VisualSlamNode::ReadImuData, this, std::placeholders::_1))),
-
+  verbosity_(declare_parameter<int>("verbosity", 0)),
+  enable_debug_mode_(declare_parameter<bool>("enable_debug_mode", false)),
+  debug_dump_path_(declare_parameter<std::string>("debug_dump_path", "/tmp/cuvslam")),
+  // Subscribers:
+  image_subs_(
+    [this]() {
+      std::vector<std::shared_ptr<NitrosImageViewSubscriber>> subs;
+      subs.reserve(num_cameras_);
+      for (uint i = 0; i < num_cameras_; ++i) {
+        subs.push_back(
+          std::make_shared<NitrosImageViewSubscriber>(
+            this,
+            "visual_slam/image_" + std::to_string(i),
+            nvidia::isaac_ros::nitros::nitros_image_rgb8_t::supported_type_name,
+            std::bind(&VisualSlamNode::CallbackImage, this, i, std::placeholders::_1),
+            nvidia::isaac_ros::nitros::NitrosStatisticsConfig(), image_qos_));
+      }
+      return subs;
+    }()),
+  camera_info_subs_(
+    [this]() {
+      std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> subs;
+      subs.reserve(num_cameras_);
+      for (uint i = 0; i < num_cameras_; ++i) {
+        subs.push_back(
+          create_subscription<CameraInfoType>(
+            "visual_slam/camera_info_" + std::to_string(i), image_qos_,
+            [this, i](const CameraInfoType::ConstSharedPtr & msg) {
+              return CallbackCameraInfo(i, msg);
+            }));
+      }
+      return subs;
+    }()),
+  imu_sub_(
+    [this]() -> rclcpp::Subscription<ImuType>::SharedPtr {
+      if (!enable_imu_fusion_) {return nullptr;}
+      return create_subscription<ImuType>(
+        "visual_slam/imu", imu_qos_,
+        std::bind(&VisualSlamNode::CallbackImu, this, std::placeholders::_1));
+    }()),
   // Publishers: Visual SLAM
   visual_slam_status_pub_(
-    create_publisher<VisualSlamStatusType>("visual_slam/status", rclcpp::QoS(10))),
+    create_publisher<VisualSlamStatusType>(
+      "visual_slam/status", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   tracking_vo_pose_pub_(
-    create_publisher<PoseStampedType>("visual_slam/tracking/vo_pose", rclcpp::QoS(100))),
+    create_publisher<PoseStampedType>(
+      "visual_slam/tracking/vo_pose", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   tracking_vo_pose_covariance_pub_(
     create_publisher<PoseWithCovarianceStampedType>(
-      "visual_slam/tracking/vo_pose_covariance", rclcpp::QoS(100))),
+      "visual_slam/tracking/vo_pose_covariance", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   tracking_odometry_pub_(
-    create_publisher<OdometryType>("visual_slam/tracking/odometry", rclcpp::QoS(100))),
+    create_publisher<OdometryType>(
+      "visual_slam/tracking/odometry", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   tracking_vo_path_pub_(
-    create_publisher<PathType>("visual_slam/tracking/vo_path", rclcpp::QoS(100))),
+    create_publisher<PathType>(
+      "visual_slam/tracking/vo_path", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   tracking_slam_path_pub_(
-    create_publisher<PathType>("visual_slam/tracking/slam_path", rclcpp::QoS(100))),
+    create_publisher<PathType>(
+      "visual_slam/tracking/slam_path", ::isaac_ros::common::ParseQosString("DEFAULT"))),
+  diagnostics_pub_(
+    create_publisher<DiagnosticArrayType>(
+      "/diagnostics", ::isaac_ros::common::ParseQosString("DEFAULT"))),
 
   // Visualizators for odometry
   vis_observations_pub_(
-    create_publisher<PointCloud2Type>("visual_slam/vis/observations_cloud", rclcpp::QoS(10))),
+    create_publisher<PointCloud2Type>(
+      "visual_slam/vis/observations_cloud", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_gravity_pub_(
-    create_publisher<MarkerType>("visual_slam/vis/gravity", rclcpp::QoS(10))),
+    create_publisher<MarkerType>(
+      "visual_slam/vis/gravity", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_vo_velocity_pub_(
-    create_publisher<MarkerArrayType>("visual_slam/vis/velocity", rclcpp::QoS(10))),
+    create_publisher<MarkerArrayType>(
+      "visual_slam/vis/velocity", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_slam_odometry_pub_(
-    create_publisher<OdometryType>("visual_slam/vis/slam_odometry", rclcpp::QoS(10))),
+    create_publisher<OdometryType>(
+      "visual_slam/vis/slam_odometry", ::isaac_ros::common::ParseQosString("DEFAULT"))),
 
   // Visualizators for map and "loop closure"
   vis_landmarks_pub_(
-    create_publisher<PointCloud2Type>("visual_slam/vis/landmarks_cloud", rclcpp::QoS(10))),
+    create_publisher<PointCloud2Type>(
+      "visual_slam/vis/landmarks_cloud", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_loop_closure_pub_(
-    create_publisher<PointCloud2Type>("visual_slam/vis/loop_closure_cloud", rclcpp::QoS(10))),
+    create_publisher<PointCloud2Type>(
+      "visual_slam/vis/loop_closure_cloud", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_posegraph_nodes_pub_(
-    create_publisher<PoseArrayType>("visual_slam/vis/pose_graph_nodes", rclcpp::QoS(10))),
+    create_publisher<PoseArrayType>(
+      "visual_slam/vis/pose_graph_nodes", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_posegraph_edges_pub_(
-    create_publisher<MarkerType>("visual_slam/vis/pose_graph_edges", rclcpp::QoS(10))),
+    create_publisher<MarkerType>(
+      "visual_slam/vis/pose_graph_edges", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_posegraph_edges2_pub_(
-    create_publisher<MarkerType>("visual_slam/vis/pose_graph_edges2", rclcpp::QoS(10))),
+    create_publisher<MarkerType>(
+      "visual_slam/vis/pose_graph_edges2", ::isaac_ros::common::ParseQosString("DEFAULT"))),
 
   // Visualizators for localization
   vis_localizer_pub_(
-    create_publisher<MarkerArrayType>("visual_slam/vis/localizer", rclcpp::QoS(10))),
+    create_publisher<MarkerArrayType>(
+      "visual_slam/vis/localizer", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_localizer_landmarks_pub_(
-    create_publisher<PointCloud2Type>("visual_slam/vis/localizer_map_cloud", rclcpp::QoS(10))),
+    create_publisher<PointCloud2Type>(
+      "visual_slam/vis/localizer_map_cloud", ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_localizer_observations_pub_(
     create_publisher<PointCloud2Type>(
-      "visual_slam/vis/localizer_observations_cloud", rclcpp::QoS(10))),
+      "visual_slam/vis/localizer_observations_cloud",
+      ::isaac_ros::common::ParseQosString("DEFAULT"))),
   vis_localizer_loop_closure_pub_(
     create_publisher<PointCloud2Type>(
-      "visual_slam/vis/localizer_loop_closure_cloud", rclcpp::QoS(10))),
+      "visual_slam/vis/localizer_loop_closure_cloud",
+      ::isaac_ros::common::ParseQosString("DEFAULT"))),
 
   // Slam Services
-  reset_srv_(create_service<SrvReset>(
-      "visual_slam/reset", std::bind(&VisualSlamNode::CallbackReset, this,
-      std::placeholders::_1, std::placeholders::_2))),
+  reset_srv_(
+    create_service<SrvReset>(
+      "visual_slam/reset", std::bind(
+        &VisualSlamNode::CallbackReset, this,
+        std::placeholders::_1, std::placeholders::_2))),
   get_all_poses_srv_(
     create_service<SrvGetAllPoses>(
-      "visual_slam/get_all_poses", std::bind(&VisualSlamNode::CallbackGetAllPoses, this,
-      std::placeholders::_1, std::placeholders::_2))),
-  set_odometry_pose_srv_(create_service<SrvSetOdometryPose>(
-      "visual_slam/set_odometry_pose", std::bind(&VisualSlamNode::CallbackSetOdometryPose, this,
-      std::placeholders::_1, std::placeholders::_2))),
+      "visual_slam/get_all_poses", std::bind(
+        &VisualSlamNode::CallbackGetAllPoses, this,
+        std::placeholders::_1, std::placeholders::_2))),
+  set_slam_pose_srv_(
+    create_service<SrvSetSlamPose>(
+      "visual_slam/set_slam_pose", std::bind(
+        &VisualSlamNode::CallbackSetSlamPose, this,
+        std::placeholders::_1, std::placeholders::_2))),
 
   // Initialize the impl
   impl_(std::make_unique<VisualSlamImpl>(*this))
@@ -165,14 +228,12 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   RCLCPP_INFO(get_logger(), "cuVSLAM version: %s", cuvslam_version);
 
   // VisualSlamNode is desined for this cuvslam sdk version:
-  int32_t exp_cuvslam_major = 11, exp_cuvslam_minor = 4;
+  int32_t exp_cuvslam_major = 12, exp_cuvslam_minor = 2;
   if (cuvslam_major != exp_cuvslam_major || cuvslam_minor != exp_cuvslam_minor) {
-    RCLCPP_ERROR(
+    RCLCPP_FATAL(
       get_logger(), "VisualSlamNode is designed to work with cuVSLAM SDK v%d.%d",
       exp_cuvslam_major, exp_cuvslam_minor);
-    valid_cuvslam_api_ = false;
-  } else {
-    valid_cuvslam_api_ = true;
+    exit(EXIT_FAILURE);
   }
 
   Stopwatch stopwatch_gpu;
@@ -181,18 +242,6 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   CUVSLAM_WarmUpGPU();
   RCLCPP_INFO(get_logger(), "Time taken by CUVSLAM_WarmUpGPU(): %f", ssw_gpu.Stop());
 
-  impl_->sync.reset(
-    new VisualSlamImpl::Synchronizer(
-      VisualSlamImpl::ExactTime(msg_filter_queue_size_),
-      left_image_sub_, left_camera_info_sub_, right_image_sub_, right_camera_info_sub_
-  ));
-  impl_->sync->registerCallback(
-    std::bind(
-      &VisualSlamNode::ReadImageData, this,
-      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
-
-  impl_->stream_sequencer.RegisterCallback(
-    std::bind(&VisualSlamNode::ComputePose, this, std::placeholders::_1, std::placeholders::_2));
 
   load_map_and_localize_server_ = rclcpp_action::create_server<ActionLoadMapAndLocalize>(
     this,
@@ -219,63 +268,6 @@ VisualSlamNode::~VisualSlamNode()
   impl_.reset();
 }
 
-void VisualSlamNode::ReadImageData(
-  const ImageType::ConstSharedPtr & msg_left_img,
-  const CameraInfoType::ConstSharedPtr & msg_left_ci,
-  const ImageType::ConstSharedPtr & msg_right_img,
-  const CameraInfoType::ConstSharedPtr & msg_right_ci)
-{
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
-    "VisualSlamNode::ReadImageData", nvidia::isaac_ros::nitros::CLR_YELLOW);
-
-  if (!valid_cuvslam_api_) {
-    nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
-    exit(EXIT_FAILURE);
-  }
-
-  const rclcpp::Time timestamp(msg_left_img->header.stamp.sec, msg_left_img->header.stamp.nanosec);
-  const int64_t current_ts = static_cast<int64_t>(timestamp.nanoseconds());
-
-  // Initialize on first call
-  if (!(impl_->IsInitialized())) {
-    impl_->Init(msg_left_ci, msg_right_ci);
-    impl_->last_img_ts = current_ts;
-  }
-
-  impl_->stream_sequencer.CallbackStream2(current_ts, {msg_left_img, msg_right_img});
-
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
-}
-
-
-void VisualSlamNode::ReadImuData(const ImuType::ConstSharedPtr msg_imu)
-{
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
-    "VisualSlamNode::ReadImuData", nvidia::isaac_ros::nitros::CLR_RED);
-  if (!valid_cuvslam_api_) {
-    exit(EXIT_FAILURE);
-  }
-  if (!impl_->IsInitialized() || !enable_imu_fusion_) {
-    return;
-  }
-
-  const rclcpp::Time timestamp(msg_imu->header.stamp.sec, msg_imu->header.stamp.nanosec);
-  const int64_t current_ts = static_cast<int64_t>(timestamp.nanoseconds());
-
-  impl_->stream_sequencer.CallbackStream1(current_ts, msg_imu);
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
-}
-
-void VisualSlamNode::ComputePose(
-  const std::vector<ImuType::ConstSharedPtr> imu_msgs,
-  const std::pair<ImageType::ConstSharedPtr, ImageType::ConstSharedPtr> image_pair)
-{
-  for (auto imu_msg : imu_msgs) {
-    impl_->RegisterImu(imu_msg);
-  }
-  impl_->TrackAndGetPose(image_pair.first, image_pair.second);
-}
-
 void VisualSlamNode::CallbackReset(
   const std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::Reset_Request> req,
   std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::Reset_Response> res)
@@ -296,60 +288,56 @@ void VisualSlamNode::CallbackGetAllPoses(
 
   RCLCPP_INFO(this->get_logger(), "cuvslam: GetAllPoses");
 
-  if (impl_->IsInitialized()) {
-    // CUVSLAM_GetAllPoses
-    std::vector<CUVSLAM_PoseStamped> cuvslam_poses(req->max_count);
-    uint32_t count = CUVSLAM_GetAllPoses(
-      impl_->cuvslam_handle, req->max_count, cuvslam_poses.data());
-    if (count == 0) {
-      RCLCPP_WARN(this->get_logger(), "CUVSLAM_GetAllPoses Error");
-    }
-    res->poses.resize(count);
-
-    for (uint32_t i = 0; i < count; i++) {
-      const CUVSLAM_Pose & cuvslam_pose_cuvslam = cuvslam_poses[i].pose;
-      tf2::Transform ros_pose_cuvslam = FromcuVSLAMPose(cuvslam_pose_cuvslam);
-      tf2::Transform ros_pose_ros = ChangeBasis(impl_->canonical_pose_cuvslam, ros_pose_cuvslam);
-
-      PoseType ros_pose_msg;
-      tf2::toMsg(ros_pose_ros, ros_pose_msg);
-
-      res->poses[i].pose = ros_pose_msg;
-      res->poses[i].header.stamp = rclcpp::Time(cuvslam_poses[i].timestamp_ns, RCL_ROS_TIME);
-    }
-
-    res->success = (count != 0);
+  if (!impl_->IsInitialized()) {
+    RCLCPP_ERROR(this->get_logger(), "CUVSLAM tracker is not initialized");
+    res->success = false;
+    return;
   }
+
+  // CUVSLAM_GetAllSLAMPoses
+  std::vector<CUVSLAM_PoseStamped> cuvslam_poses(req->max_count);
+  const uint32_t count = CUVSLAM_GetAllSLAMPoses(
+    impl_->cuvslam_handle, req->max_count, cuvslam_poses.data());
+  if (count == 0) {
+    RCLCPP_WARN(this->get_logger(), "CUVSLAM_GetAllSLAMPoses Error");
+  }
+  res->poses.resize(count);
+
+  for (uint32_t i = 0; i < count; i++) {
+    tf2::Transform cv_map_pose_cv_base = FromcuVSLAMPose(cuvslam_poses[i].pose);
+    tf2::Transform map_pose_base =
+      ChangeBasis(canonical_pose_cuvslam, cv_map_pose_cv_base);
+    PoseType ros_pose_msg;
+    tf2::toMsg(map_pose_base, ros_pose_msg);
+
+    res->poses[i].pose = ros_pose_msg;
+    res->poses[i].header.stamp = rclcpp::Time(cuvslam_poses[i].timestamp_ns, RCL_ROS_TIME);
+  }
+
+  res->success = (count != 0);
 }
 
-void VisualSlamNode::CallbackSetOdometryPose(
-  const std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::SetOdometryPose_Request> req,
-  std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::SetOdometryPose_Response> res)
+void VisualSlamNode::CallbackSetSlamPose(
+  const std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::SetSlamPose_Request> req,
+  std::shared_ptr<isaac_ros_visual_slam_interfaces::srv::SetSlamPose_Response> res)
 {
   res->success = false;
 
-  RCLCPP_INFO(this->get_logger(), "cuvslam: CallbackSetOdometryPose");
+  RCLCPP_INFO(this->get_logger(), "cuvslam: CallbackSetSlamPose");
 
   if (impl_->IsInitialized()) {
     tf2::Transform req_map_pose_base_link;
     tf2::fromMsg(req->pose, req_map_pose_base_link);
 
-    CUVSLAM_Pose vo_pose;
-    const CUVSLAM_Status status = CUVSLAM_GetOdometryPose(impl_->cuvslam_handle, &vo_pose);
+    // Convert to cuvslam
+    req_map_pose_base_link = ChangeBasis(cuvslam_pose_canonical, req_map_pose_base_link);
+    CUVSLAM_Pose req_map_pose_cuvslam = TocuVSLAMPose(req_map_pose_base_link);
+
+    const CUVSLAM_Status status = CUVSLAM_SetSlamPose(impl_->cuvslam_handle, &req_map_pose_cuvslam);
     if (status != CUVSLAM_SUCCESS) {
-      RCLCPP_WARN(this->get_logger(), "CUVSLAM_GetOdometryPose() Error %d", status);
+      RCLCPP_WARN(this->get_logger(), "CUVSLAM_SetSlamPose() Error %d", status);
       return;
     }
-
-    const tf2::Transform ros_vo_pose =
-      ChangeBasis(impl_->canonical_pose_cuvslam, FromcuVSLAMPose(vo_pose));
-
-    const tf2::Transform odom_pose_base_link = impl_->initial_odom_pose_left * ros_vo_pose *
-      impl_->base_link_pose_left.inverse();
-
-    const tf2::Transform map_pose_odom = req_map_pose_base_link * odom_pose_base_link.inverse();
-
-    impl_->PublishFrameTransform(this->get_clock()->now(), map_pose_odom, "map", odom_frame_, true);
     res->success = true;
   } else {
     RCLCPP_ERROR(this->get_logger(), "CUVSLAM tracker is not initialized");
@@ -430,33 +418,32 @@ void VisualSlamNode::CallbackLoadMapAndLocalizeAccepted(
 {
   RCLCPP_WARN(this->get_logger(), "CallbackLoadMapAndLocalizeAccepted()");
 
-  auto result =
-    std::make_shared<ActionLoadMapAndLocalize::Result>();
+  auto result = std::make_shared<ActionLoadMapAndLocalize::Result>();
   result->success = false;
 
   if (!impl_->IsInitialized()) {
     goal_handle->abort(result);
     return;
   }
+
+  // Get goal from action.
   const auto & goal = goal_handle->get_goal();
-
-  const auto & pt = goal->localize_near_point;
-  // Goal
-  std::string load_map_and_localize_url = goal->map_url;
-  tf2::Vector3 load_map_and_localize_point = tf2::Vector3(pt.x, pt.y, pt.z);
-
   RCLCPP_INFO(
     this->get_logger(), "cuvslam: LoadMapAndLocalize %s [%f, %f, %f]",
-    goal->map_url.c_str(), pt.x, pt.y, pt.z);
+    goal->map_url.c_str(), goal->localize_near_point.x, goal->localize_near_point.y,
+    goal->localize_near_point.z);
 
-  // Init guess_pose
-  tf2::Transform guess_pose;
-  guess_pose.setIdentity();
-  guess_pose.setOrigin(load_map_and_localize_point);
+  // Create initial guess pose.
+  tf2::Vector3 pose_hint_translation;
+  tf2::convert(goal->localize_near_point, pose_hint_translation);
+  tf2::Transform map_pose_base;
+  map_pose_base.setIdentity();
+  map_pose_base.setOrigin(pose_hint_translation);
 
-  // Convert to cuvslam
-  guess_pose = ChangeBasis(impl_->cuvslam_pose_canonical, guess_pose);
-  CUVSLAM_Pose guess_pose_cuvslam = TocuVSLAMPose(guess_pose);
+  // Convert to cuvslam conventions.
+  const tf2::Transform cv_map_pose_cv_base = ChangeBasis(
+    cuvslam_pose_canonical, cv_map_pose_cv_base);
+  const CUVSLAM_Pose pose_hint = TocuVSLAMPose(cv_map_pose_cv_base);
 
   // Context
   VisualSlamImpl::LocalizeInExistDbContext * context =
@@ -466,9 +453,10 @@ void VisualSlamNode::CallbackLoadMapAndLocalizeAccepted(
 
   // Localize In Exist Db
   const CUVSLAM_Status status = CUVSLAM_LocalizeInExistDb(
-    impl_->cuvslam_handle, load_map_and_localize_url.c_str(), &guess_pose_cuvslam,
-    0,                    // reserved for future implementation
-    nullptr,
+    impl_->cuvslam_handle, goal->map_url.c_str(), &pose_hint,
+    /*radius=*/ 0.0,                    // reserved for future implementation
+    /*images=*/ nullptr,
+    /*images_size=*/ 0,
     &VisualSlamNode::VisualSlamImpl::LocalizeInExistDbResponse, context);
   if (status != CUVSLAM_SUCCESS) {
     RCLCPP_WARN(this->get_logger(), "CUVSLAM_LocalizeInExistDb Error %d", status);
@@ -477,6 +465,17 @@ void VisualSlamNode::CallbackLoadMapAndLocalizeAccepted(
   }
 }
 
+void VisualSlamNode::CallbackImu(const ImuType::ConstSharedPtr & msg) {impl_->CallbackImu(msg);}
+
+void VisualSlamNode::CallbackImage(int index, const ImageType & msg)
+{
+  impl_->CallbackImage(index, msg);
+}
+
+void VisualSlamNode::CallbackCameraInfo(int index, const CameraInfoType::ConstSharedPtr & msg)
+{
+  impl_->CallbackCameraInfo(index, msg);
+}
 }  // namespace visual_slam
 }  // namespace isaac_ros
 }  // namespace nvidia

@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,6 +38,8 @@ template<class T1, class T2>
 class MessageStreamSequencer
 {
 public:
+  using Callback = std::function<void (const std::vector<T1> &, const T2 &)>;
+
   explicit MessageStreamSequencer(
     uint8_t size_stream1, int64_t eps_stream1, uint8_t size_stream2, int64_t eps_stream2);
   void CallbackStream1(const int64_t & timestamp, const T1 & msg);
@@ -46,7 +48,7 @@ public:
   int64_t GetNextTimeStampStream2();
   size_t GetSizeStream1();
   size_t GetSizeStream2();
-  void RegisterCallback(std::function<void(std::vector<T1>, T2)> callback);
+  void RegisterCallback(Callback callback);
 
 private:
   // Buffer
@@ -54,7 +56,7 @@ private:
   int64_t epsilon_stream1_;
   MessageBuffer<T2> stream2_buff_;
   int64_t epsilon_stream2_;
-  std::function<void(const std::vector<T1>, const T2)> registered_callback_;
+  Callback registered_callback_ = [](const std::vector<T1> &, const T2 &) {};
 };
 
 template<class T1, class T2>
@@ -179,8 +181,7 @@ template<class T1, class T2>
 size_t MessageStreamSequencer<T1, T2>::GetSizeStream2() {return stream2_buff_.Size();}
 
 template<class T1, class T2>
-void MessageStreamSequencer<T1, T2>::RegisterCallback(
-  std::function<void(std::vector<T1>, T2)> callback)
+void MessageStreamSequencer<T1, T2>::RegisterCallback(Callback callback)
 {
   registered_callback_ = callback;
 }
