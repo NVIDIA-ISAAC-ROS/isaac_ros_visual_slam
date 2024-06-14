@@ -11,7 +11,7 @@ Panels:
         - /Localizer1/Localizer Map1
         - /Odometry1/Shape1
       Splitter Ratio: 0.7441176176071167
-    Tree Height: 255
+    Tree Height: 343
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -52,9 +52,25 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        back_2d_lidar:
-          Value: false
+        back_fisheye_camera:
+          Value: true
+        back_fisheye_camera_optical:
+          Value: true
+        back_stereo_camera:
+          Value: true
+        back_stereo_camera_imu:
+          Value: true
+        back_stereo_camera_left:
+          Value: true
+        back_stereo_camera_left_optical:
+          Value: true
+        back_stereo_camera_right:
+          Value: true
+        back_stereo_camera_right_optical:
+          Value: true
         base_link:
+          Value: true
+        chassis_imu:
           Value: true
         chassis_link:
           Value: true
@@ -62,34 +78,60 @@ Visualization Manager:
           Value: false
         front_3d_lidar:
           Value: false
-        front_stereo_camera:imu:
-          Value: false
-        front_stereo_camera:left_rgb:
+        front_fisheye_camera:
           Value: true
-        front_stereo_camera:right_rgb:
+        front_fisheye_camera_optical:
           Value: true
-        left_stereo_camera:imu:
-          Value: false
-        left_stereo_camera:left_rgb:
-          Value: false
-        left_stereo_camera:right_rgb:
-          Value: false
+        front_stereo_camera:
+          Value: true
+        front_stereo_camera_imu:
+          Value: true
+        front_stereo_camera_left:
+          Value: true
+        front_stereo_camera_left_optical:
+          Value: true
+        front_stereo_camera_right:
+          Value: true
+        front_stereo_camera_right_optical:
+          Value: true
+        left_fisheye_camera:
+          Value: true
+        left_fisheye_camera_optical:
+          Value: true
+        left_stereo_camera:
+          Value: true
+        left_stereo_camera_imu:
+          Value: true
+        left_stereo_camera_left:
+          Value: true
+        left_stereo_camera_left_optical:
+          Value: true
+        left_stereo_camera_right:
+          Value: true
+        left_stereo_camera_right_optical:
+          Value: true
         map:
           Value: true
         odom:
           Value: true
-        rear_stereo_camera:imu:
-          Value: false
-        rear_stereo_camera:left_rgb:
-          Value: false
-        rear_stereo_camera:right_rgb:
-          Value: false
-        right_stereo_camera:imu:
-          Value: false
-        right_stereo_camera:left_rgb:
-          Value: false
-        right_stereo_camera:right_rgb:
-          Value: false
+        rear_2d_lidar:
+          Value: true
+        right_fisheye_camera:
+          Value: true
+        right_fisheye_camera_optical:
+          Value: true
+        right_stereo_camera:
+          Value: true
+        right_stereo_camera_imu:
+          Value: true
+        right_stereo_camera_left:
+          Value: true
+        right_stereo_camera_left_optical:
+          Value: true
+        right_stereo_camera_right:
+          Value: true
+        right_stereo_camera_right_optical:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -99,7 +141,23 @@ Visualization Manager:
         map:
           odom:
             base_link:
-              back_2d_lidar:
+              back_fisheye_camera:
+                {}
+              back_fisheye_camera_optical:
+                {}
+              back_stereo_camera:
+                {}
+              back_stereo_camera_imu:
+                {}
+              back_stereo_camera_left:
+                {}
+              back_stereo_camera_left_optical:
+                {}
+              back_stereo_camera_right:
+                {}
+              back_stereo_camera_right_optical:
+                {}
+              chassis_imu:
                 {}
               chassis_link:
                 {}
@@ -107,29 +165,55 @@ Visualization Manager:
                 {}
               front_3d_lidar:
                 {}
-              front_stereo_camera:imu:
+              front_fisheye_camera:
                 {}
-              front_stereo_camera:left_rgb:
+              front_fisheye_camera_optical:
                 {}
-              front_stereo_camera:right_rgb:
+              front_stereo_camera:
                 {}
-              left_stereo_camera:imu:
+              front_stereo_camera_imu:
                 {}
-              left_stereo_camera:left_rgb:
+              front_stereo_camera_left:
                 {}
-              left_stereo_camera:right_rgb:
+              front_stereo_camera_left_optical:
                 {}
-              rear_stereo_camera:imu:
+              front_stereo_camera_right:
                 {}
-              rear_stereo_camera:left_rgb:
+              front_stereo_camera_right_optical:
                 {}
-              rear_stereo_camera:right_rgb:
+              left_fisheye_camera:
                 {}
-              right_stereo_camera:imu:
+              left_fisheye_camera_optical:
                 {}
-              right_stereo_camera:left_rgb:
+              left_stereo_camera:
                 {}
-              right_stereo_camera:right_rgb:
+              left_stereo_camera_imu:
+                {}
+              left_stereo_camera_left:
+                {}
+              left_stereo_camera_left_optical:
+                {}
+              left_stereo_camera_right:
+                {}
+              left_stereo_camera_right_optical:
+                {}
+              rear_2d_lidar:
+                {}
+              right_fisheye_camera:
+                {}
+              right_fisheye_camera_optical:
+                {}
+              right_stereo_camera:
+                {}
+              right_stereo_camera_imu:
+                {}
+              right_stereo_camera_left:
+                {}
+              right_stereo_camera_left_optical:
+                {}
+              right_stereo_camera_right:
+                {}
+              right_stereo_camera_right_optical:
                 {}
       Update Interval: 0
       Value: true
@@ -469,7 +553,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /front_stereo_camera/left_rgb/image_raw
+        Value: /front_stereo_camera/left/image_rect_color
       Value: true
     - Class: rviz_default_plugins/Image
       Enabled: true
@@ -483,7 +567,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /front_stereo_camera/right_rgb/image_raw
+        Value: /front_stereo_camera/right/image_rect_color
       Value: true
   Enabled: true
   Global Options:
@@ -554,12 +638,12 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 946
+  Height: 1099
   Hide Left Dock: false
   Hide Right Dock: true
   Left Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000021d0000035cfc020000000dfb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b000001e6000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d0061006700650200000403000002880000037d00000228fb0000000a0049006d00610067006502000001fc000002110000058400000296fb0000000a0049006d00610067006503000006fe000005e200000433000001fffb00000014004c00650066007400200049006d0061006700650100000227000000b60000002800fffffffb000000160052006900670068007400200049006d00610067006501000002e3000000b40000002800ffffff00000001000001b40000035cfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b0000035c000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d006501000000000000045000000000000000000000055d0000035c00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000021d000003f5fc020000000dfb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b0000023e000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d0061006700650200000403000002880000037d00000228fb0000000a0049006d00610067006502000001fc000002110000058400000296fb0000000a0049006d00610067006503000006fe000005e200000433000001fffb00000014004c00650066007400200049006d006100670065010000027f000000d70000002800fffffffb000000160052006900670068007400200049006d006100670065010000035c000000d40000002800ffffff00000001000001b40000035cfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b0000035c000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d006501000000000000045000000000000000000000055d000003f500000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Right Image:
     collapsed: false
   Selection:
@@ -570,4 +654,4 @@ Window Geometry:
     collapsed: true
   Width: 1920
   X: 0
-  Y: 27
+  Y: 240
