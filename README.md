@@ -129,4 +129,4 @@ this repository.
 
 ## Latest
 
-Update 2024-05-30: Add support for multi-cam VIO
+Update 2024-09-26: Update for ZED compatibility
