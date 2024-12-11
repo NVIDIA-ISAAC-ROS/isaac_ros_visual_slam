@@ -31,15 +31,13 @@ def generate_launch_description():
                     ('visual_slam/image_1', 'front_stereo_camera/right/image_rect_color'),
                     ('visual_slam/camera_info_1', 'front_stereo_camera/right/camera_info')],
         parameters=[{
-                    'use_sim_time': True,
-                    'enable_image_denoising': True,
-                    'rectified_images': True,
-                    'enable_slam_visualization': True,
-                    'enable_observations_view': True,
-                    'enable_landmarks_view': True,
-                    }]
-
-    )
+            'use_sim_time': True,
+            'enable_image_denoising': True,
+            'rectified_images': True,
+            'enable_slam_visualization': True,
+            'enable_observations_view': True,
+            'enable_landmarks_view': True,
+        }])
 
     visual_slam_launch_container = ComposableNodeContainer(
         name='visual_slam_launch_container',

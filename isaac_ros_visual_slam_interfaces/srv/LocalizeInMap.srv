@@ -1,0 +1,10 @@
+# Use this service to load a map and localize in it.
+# Request
+# Path where the map is stored.
+string map_folder_path
+# Pose hint used to localize in the map. Pose hint corresponds to map_T_robot.
+geometry_msgs/Pose pose_hint
+---
+# Response
+# Indicate successful run of the service
+bool success

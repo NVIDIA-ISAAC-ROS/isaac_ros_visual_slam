@@ -101,9 +101,9 @@ outdoor scenes.
 
 ## Performance
 
-| Sample Graph<br/><br/>                                                                                                                                                                                                           | Input Size<br/><br/>      | Nova Carter<br/><br/>                                                                                                                                   |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Multicam Visual SLAM Live Graph](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/benchmarks/isaac_ros_perceptor_nova_benchmark/scripts/isaac_ros_visual_slam_graph.py)<br/><br/><br/>4 Hawk Cameras<br/><br/> | 1200p<br/><br/><br/><br/> | [30.0 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_4_hawk_vslam_graph-carter_v2.4.json)<br/><br/><br/><br/> |
+| Sample Graph<br/><br/>                                                                                                                                                                                                           | Input Size<br/><br/>      | Nova Carter<br/><br/>                                                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Multicam Visual SLAM Live Graph](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/benchmarks/isaac_ros_perceptor_nova_benchmark/scripts/isaac_ros_visual_slam_graph.py)<br/><br/><br/>4 Hawk Cameras<br/><br/> | 1200p<br/><br/><br/><br/> | [30.1 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_4_hawk_vslam_graph-carter-v2.4-jp6.json)<br/><br/><br/><br/> |
 
 > [!Note]
 > This benchmark can only be run on a [Nova Orin](https://developer.nvidia.com/isaac/nova-orin) compatible system.
@@ -129,4 +129,4 @@ this repository.
 
 ## Latest
 
-Update 2024-09-26: Update for ZED compatibility
+Update 2024-12-10: Add support for multi-cam SLAM mode on stereo RGB cameras

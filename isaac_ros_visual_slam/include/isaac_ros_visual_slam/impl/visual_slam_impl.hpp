@@ -1,4 +1,3 @@
-// SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 // Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,17 +25,21 @@
 #include <utility>
 #include <vector>
 
+#define BOOST_THREAD_PROVIDES_FUTURE
+#define BOOST_THREAD_PROVIDES_FUTURE_CONTINUATION
+#include "boost/thread.hpp"
+#include "boost/thread/future.hpp"
 #include "cuvslam.h"  // NOLINT - include .h without directory
 #include "ground_constraint.h"  // NOLINT - include .h without directory
 #include "cv_bridge/cv_bridge.h"
+#include "isaac_common/messaging/message_stream_synchronizer.hpp"
 #include "isaac_ros_visual_slam/impl/landmarks_vis_helper.hpp"
-#include "isaac_ros_visual_slam/impl/localizer_vis_helper.hpp"
-#include "isaac_ros_visual_slam/impl/message_stream_synchronizer.hpp"
-#include "isaac_ros_visual_slam/impl/message_stream_sequencer.hpp"
-#include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
-#include "isaac_ros_visual_slam/impl/pose_cache.hpp"
-#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "isaac_ros_visual_slam/impl/limited_vector.hpp"
+#include "isaac_ros_visual_slam/impl/localizer_vis_helper.hpp"
+#include "isaac_ros_visual_slam/impl/message_stream_sequencer.hpp"
+#include "isaac_ros_visual_slam/impl/pose_cache.hpp"
+#include "isaac_ros_visual_slam/impl/posegraph_vis_helper.hpp"
+#include "isaac_ros_visual_slam/impl/types.hpp"
 #include "isaac_ros_visual_slam/visual_slam_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Transform.h"
@@ -56,6 +59,28 @@ constexpr int32_t kMaxNumCameraParameters = 12;
 
 struct VisualSlamNode::VisualSlamImpl
 {
+  // Asynchronous response for CUVSLAM_SaveToSlamDb()
+  struct SaveToSlamDbContext
+  {
+    struct Response
+    {
+      CUVSLAM_Status status;
+    };
+    boost::promise<Response> response_promise;
+  };
+
+  // Asynchronous response for CUVSLAM_LocalizeInExistDb()
+  struct LocalizeInExistDbContext
+  {
+    struct Response
+    {
+      CUVSLAM_Status status;
+      CUVSLAM_Pose pose_in_db;
+    };
+    boost::promise<Response> response_promise;
+  };
+
+
   explicit VisualSlamImpl(VisualSlamNode & vslam_node);
 
   ~VisualSlamImpl();
@@ -77,9 +102,9 @@ struct VisualSlamNode::VisualSlamImpl
     rclcpp::Time stamp, const tf2::Transform & pose, const std::string & target,
     const std::string & source);
 
-  // Helper to get a transform from the tf tree.
-  tf2::Transform GetFrameTransform(
-    rclcpp::Time stamp, const std::string & target, const std::string & source);
+  // Helper to get latest transform from the tf tree.
+  tf2::Transform GetLatestTransform(
+    const std::string & target, const std::string & source);
 
   // Helper to publish the estimated velocity from odometry.
   void PublishOdometryVelocity(
@@ -91,18 +116,9 @@ struct VisualSlamNode::VisualSlamImpl
     rclcpp::Time stamp, const std::string & frame_id,
     const rclcpp::Publisher<MarkerType>::SharedPtr publisher);
 
-  // Callback for cuvslam's API to localize in an existing map.
-  static void LocalizeInExistDbResponse(
-    void * context, CUVSLAM_Status status, const CUVSLAM_Pose * pose_in_db);
-
-  // Callback for cuvslam's API to store a map to disk.
-  static void SaveToSlamDbResponse(void * context, CUVSLAM_Status status);
-
   // Callbacks for subscribers.
   void CallbackImu(const ImuType::ConstSharedPtr & msg);
-
   void CallbackImage(int index, const ImageType & image_view);
-
   void CallbackCameraInfo(int index, const CameraInfoType::ConstSharedPtr & msg);
 
   // Callback for synchronizer.
@@ -114,11 +130,38 @@ struct VisualSlamNode::VisualSlamImpl
     const std::vector<ImuType::ConstSharedPtr> & imu_msgs,
     const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs);
 
+  // Save the current map to disk.
+  CUVSLAM_Status SaveMap(const std::string & map_folder_path);
+
+  // Core functionality to localize in a map. Expects and returns the pose in cuvslam conventions.
+  boost::future<LocalizeInExistDbContext::Response> CuvslamInternalLocalizeInMapAsync(
+    const std::string & map_folder_path,
+    const CUVSLAM_Pose & pose_hint);
+
+  // Localize in an existing map asynchronously. Expects and returns the pose in ROS conventions.
+  boost::future<std::optional<PoseType>> LocalizeInMapAsync(
+    const std::string & map_folder_path,
+    const PoseType & pose_hint,
+    const std::string & frame_id);
+
+  // Synchonous wrapper for LocalizeInMapAsync.
+  std::optional<PoseType> LocalizeInMap(
+    const std::string & map_folder_path,
+    const PoseType & pose_hint,
+    const std::string & frame_id);
+
+  // Callback for cuvslam's API to localize in an existing map.
+  static void LocalizeInExistDbResponse(
+    void * context, CUVSLAM_Status status, const CUVSLAM_Pose * pose_in_db);
+
+  // Callback for cuvslam's API to store a map to disk.
+  static void SaveToSlamDbResponse(void * context, CUVSLAM_Status status);
+
   // Reference to the ros node.
   VisualSlamNode & node;
 
   // Synchronizer used to sync all image messages.
-  using Synchronizer = MessageStreamSynchronizer<ImageType>;
+  using Synchronizer = isaac_common::messaging::MessageStreamSynchronizer<ImageType>;
   Synchronizer sync;
 
   // Sequencer used to sequence imu and image messages.
@@ -178,18 +221,8 @@ struct VisualSlamNode::VisualSlamImpl
   std::optional<ImuType::ConstSharedPtr> initial_imu_message;
   std::map<int, std::optional<CameraInfoType::ConstSharedPtr>> initial_camera_info_messages;
 
-  // Asynchronous response for CUVSLAM_LocalizeInExistDb()
-  struct LocalizeInExistDbContext
-  {
-    VisualSlamNode::VisualSlamImpl * impl = nullptr;
-    std::shared_ptr<GoalHandleLoadMapAndLocalize> goal_handle;
-  };
-
-  // Asynchronous response for CUVSLAM_SaveToSlamDb()
-  struct SaveToSlamDbContext
-  {
-    std::shared_ptr<GoalHandleSaveMap> goal_handle;
-  };
+  LocalizeInExistDbContext localize_in_exist_db_context;
+  bool localized_in_exist_map_ = false;
 };
 
 }  // namespace visual_slam

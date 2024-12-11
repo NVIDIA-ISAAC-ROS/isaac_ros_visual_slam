@@ -27,7 +27,6 @@
 #include "message_filters/subscriber.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/qos.hpp"
-#include "rclcpp_action/rclcpp_action.hpp"
 
 namespace nvidia
 {
@@ -117,6 +116,42 @@ private:
   // Ideally it should be equal to (1 / fps_value).
   const double imu_jitter_threshold_ms_;
 
+  // If set will save the generated map when shutting down the node to the specified path. Requires
+  // enable_localization_n_mapping_ to be true.
+  const std::string save_map_folder_path_;
+
+  // Default map that is used to localize in. Can be changed at runtime with the "LoadMapSrv"
+  // service. In order to use the map an initial pose hint also has to be provided with the
+  // "LocalizeInMap" service or the "initialpose" topic. Using maps requires
+  // enable_localization_n_mapping_ to be true.
+  std::string load_map_folder_path_;
+
+  // If true will try to localize in the map around [0,0,0]. Requires that load_map_folder_path_ is
+  // set.
+  bool localize_on_startup_;
+
+  // Radius of the area on the horizontal plane used for localization in meters.
+  const float localizer_horizontal_radius_;
+
+  // Radius along the vertical axis used for localization in meters.
+  const float localizer_vertical_radius_;
+
+  // Step size along each axis on the horizontal plane for localization in meters.
+  const float localizer_horizontal_step_;
+
+  // Step size along vectical axis for localization in meters.
+  const float localizer_vertical_step_;
+
+  // Step size around vectical axis for localization in radians. Must be less then 2 Pi.
+  const float localizer_angular_step_;
+
+  // Maximum number of poses that is stored in the SLAM map. Default is 300.
+  // Adding more poses will invoke reduction of the map until it`s size matches this constant.
+  const uint slam_max_map_size_;
+
+  // Minimum time interval between loop closures. Default is 500 ms.
+  const uint slam_throttling_time_ms_;
+
   // This node assumes the following frame hierarchy:
   // map - odom - base - ... - camera_i
   const std::string map_frame_;
@@ -180,10 +215,18 @@ private:
   // Path to directory to store the dump data. Only used when enable_debug_mode_ is true.
   const std::string debug_dump_path_;
 
-  // Subscribers
-  const std::vector<std::shared_ptr<NitrosImageViewSubscriber>> image_subs_;
+  // Enable requesting another hint if current hint fails to initialize cuvslam localization.
+  const bool enable_request_hint_;
+
+  // Callback group
+  const rclcpp::CallbackGroup::SharedPtr localize_in_map_callback_group_;
+
+  // Subscribers. Unique pointer is used for NITROS type to enable more flexibility when
+  // deallocating.
+  std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> image_subs_;
   const std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> camera_info_subs_;
   const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
+  const rclcpp::Subscription<PoseWithCovarianceStampedType>::SharedPtr initial_pose_sub_;
 
   // Publishers: Visual SLAM
   const rclcpp::Publisher<VisualSlamStatusType>::SharedPtr visual_slam_status_pub_;
@@ -194,6 +237,9 @@ private:
   const rclcpp::Publisher<PathType>::SharedPtr tracking_vo_path_pub_;
   const rclcpp::Publisher<PathType>::SharedPtr tracking_slam_path_pub_;
   const rclcpp::Publisher<DiagnosticArrayType>::SharedPtr diagnostics_pub_;
+
+  // Sends a message to global localization to generate a pose hint
+  const rclcpp::Publisher<PoseWithCovarianceStampedType>::SharedPtr trigger_hint_pub_;
 
   // Visualization for odometry
   const rclcpp::Publisher<PointCloud2Type>::SharedPtr vis_observations_pub_;
@@ -218,7 +264,11 @@ private:
   const rclcpp::Service<SrvReset>::SharedPtr reset_srv_;
   const rclcpp::Service<SrvGetAllPoses>::SharedPtr get_all_poses_srv_;
   const rclcpp::Service<SrvSetSlamPose>::SharedPtr set_slam_pose_srv_;
+  const rclcpp::Service<SrvFilePath>::SharedPtr save_map_srv_;
+  const rclcpp::Service<SrvFilePath>::SharedPtr load_map_srv_;
+  const rclcpp::Service<SrvLocalizeInMap>::SharedPtr localize_in_map_srv_;
 
+  // Callback functions for services.
   void CallbackReset(
     const std::shared_ptr<SrvReset::Request> req,
     std::shared_ptr<SrvReset::Response> res);
@@ -228,32 +278,21 @@ private:
   void CallbackSetSlamPose(
     const std::shared_ptr<SrvSetSlamPose::Request> req,
     std::shared_ptr<SrvSetSlamPose::Response> res);
+  void CallbackSaveMap(
+    const std::shared_ptr<SrvFilePath::Request> req,
+    std::shared_ptr<SrvFilePath::Response> res);
+  void CallbackLoadMap(
+    const std::shared_ptr<SrvFilePath::Request> req,
+    std::shared_ptr<SrvFilePath::Response> res);
+  void CallbackLocalizeInMap(
+    const std::shared_ptr<SrvLocalizeInMap::Request> req,
+    std::shared_ptr<SrvLocalizeInMap::Response> res);
 
-  // SaveMap Action
-  rclcpp_action::Server<ActionSaveMap>::SharedPtr save_map_server_;
-  using GoalHandleSaveMap = rclcpp_action::ServerGoalHandle<ActionSaveMap>;
-  rclcpp_action::GoalResponse CallbackSaveMapGoal(
-    const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const ActionSaveMap::Goal> goal);
-  rclcpp_action::CancelResponse CallbackSaveMapCancel(
-    const std::shared_ptr<GoalHandleSaveMap> goal_handle);
-  void CallbackSaveMapAccepted(
-    const std::shared_ptr<GoalHandleSaveMap> goal_handle);
-
-  // LoadMapAndLocalize Action
-  rclcpp_action::Server<ActionLoadMapAndLocalize>::SharedPtr load_map_and_localize_server_;
-  using GoalHandleLoadMapAndLocalize = rclcpp_action::ServerGoalHandle<ActionLoadMapAndLocalize>;
-  rclcpp_action::GoalResponse CallbackLoadMapAndLocalizeGoal(
-    const rclcpp_action::GoalUUID & uuid, std::shared_ptr
-    <const ActionLoadMapAndLocalize::Goal> goal);
-  rclcpp_action::CancelResponse CallbackLoadMapAndLocalizeCancel(
-    const std::shared_ptr<GoalHandleLoadMapAndLocalize> goal_handle);
-  void CallbackLoadMapAndLocalizeAccepted(
-    const std::shared_ptr<GoalHandleLoadMapAndLocalize> goal_handle);
-
-  // Callback functions for sensors
+  // Callback functions for subscribers.
   void CallbackImu(const ImuType::ConstSharedPtr & msg);
   void CallbackImage(int index, const ImageType & msg);
   void CallbackCameraInfo(int index, const CameraInfoType::ConstSharedPtr & msg);
+  void CallbackInitialPose(const PoseWithCovarianceStampedType::ConstSharedPtr & msg);
 
   struct VisualSlamImpl;
   std::unique_ptr<VisualSlamImpl> impl_;

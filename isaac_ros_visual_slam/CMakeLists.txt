@@ -25,13 +25,15 @@ endif()
 execute_process(COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
 message( STATUS "Architecture: ${ARCHITECTURE}" )
 
+find_package(Boost COMPONENTS thread REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
 # Dependencies
-find_package(Eigen3 REQUIRED)
 find_package(Threads REQUIRED)
+find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
+include_directories(${isaac_common_INCLUDE_DIRS})
 
 # cuVSLAM (resolve path from ament_index)
 ament_index_get_resource(CUVSLAM_RELATIVE_PATH cuvslam isaac_ros_nitros)
@@ -44,6 +46,7 @@ foreach(PREFIX_PATH IN LISTS AMENT_INDEX_PREFIX_PATHS)
 endforeach()
 
 include_directories(${CUVSLAM}/include)
+
 add_library(cuvslam SHARED IMPORTED)
 set_property(TARGET cuvslam PROPERTY IMPORTED_LOCATION ${CUVSLAM}/lib/libcuvslam.so)
 
@@ -59,7 +62,7 @@ ament_auto_add_library(
   src/impl/visual_slam_impl.cpp
   src/impl/viz_helper.cpp
 )
-target_link_libraries(visual_slam_node cuvslam)
+target_link_libraries(visual_slam_node cuvslam Boost::thread)
 rclcpp_components_register_nodes(visual_slam_node "nvidia::isaac_ros::visual_slam::VisualSlamNode")
 set(node_plugins "${node_plugins}nvidia::isaac_ros::visual_slam::VisualSlamNode;$<TARGET_FILE:visual_slam_node>\n")
 
@@ -69,15 +72,19 @@ ament_auto_add_executable(${PROJECT_NAME}
 )
 target_link_libraries(${PROJECT_NAME} visual_slam_node)
 
+# API launcher executable
+install(PROGRAMS
+  ${CUVSLAM}/lib/cuvslam_api_launcher
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install cuVSLAM
-install(DIRECTORY ${CUVSLAM}/lib DESTINATION share/cuvslam)
+install(FILES ${CUVSLAM}/lib/libcuvslam.so DESTINATION lib)
 
 set_target_properties(visual_slam_node PROPERTIES
   BUILD_WITH_INSTALL_RPATH TRUE
   BUILD_RPATH_USE_ORIGIN TRUE
-  INSTALL_RPATH_USE_LINK_PATH TRUE
-  INSTALL_RPATH "$ORIGIN/../share/cuvslam")
-
+  INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -89,21 +96,15 @@ if(BUILD_TESTING)
   endif()
 
   find_package(launch_testing_ament_cmake REQUIRED)
-  add_launch_test(test/isaac_ros_visual_slam_pol_single_cam_imu.py)
   add_launch_test(test/isaac_ros_visual_slam_pol_multi_cam_imu.py)
-  add_launch_test(test/isaac_ros_visual_slam_srv_reset.py)
+  add_launch_test(test/isaac_ros_visual_slam_pol_single_cam_imu.py)
   add_launch_test(test/isaac_ros_visual_slam_srv_get_all_poses.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv_load_map.py)
+  # TODO(lgulich): Enable this test when we have better test data.
+  # add_launch_test(test/isaac_ros_visual_slam_srv_localize_in_map.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv_reset.py)
+  add_launch_test(test/isaac_ros_visual_slam_srv_save_map.py)
   add_launch_test(test/isaac_ros_visual_slam_srv_set_slam_pose.py)
-
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(${PROJECT_NAME}_test_message_buffer test/test_message_buffer.cpp)
-  target_include_directories(${PROJECT_NAME}_test_message_buffer PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  )
-  ament_target_dependencies(${PROJECT_NAME}_test_message_buffer
-    std_msgs
-  )
 
   ament_add_gtest(${PROJECT_NAME}_test_message_stream_sequencer test/test_message_stream_sequencer.cpp)
   target_include_directories(${PROJECT_NAME}_test_message_stream_sequencer PUBLIC
@@ -113,18 +114,12 @@ if(BUILD_TESTING)
   ament_target_dependencies(${PROJECT_NAME}_test_message_stream_sequencer
     std_msgs
   )
-
-  ament_add_gtest(${PROJECT_NAME}_test_message_stream_synchronizer
-    test/test_message_stream_synchronizer.cpp
-  )
-  target_include_directories(${PROJECT_NAME}_test_message_stream_synchronizer PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  )
-  ament_target_dependencies(${PROJECT_NAME}_test_message_stream_synchronizer
-    rclcpp
-    geometry_msgs
-  )
 endif()
+
+
+# Embed versioning information into installed files
+ament_index_get_resource(ISAAC_ROS_COMMON_CMAKE_PATH isaac_ros_common_cmake_path isaac_ros_common)
+include("${ISAAC_ROS_COMMON_CMAKE_PATH}/isaac_ros_common-version-info.cmake")
+generate_version_info(${PROJECT_NAME})
 
 ament_auto_package(INSTALL_TO_SHARE config launch rviz)

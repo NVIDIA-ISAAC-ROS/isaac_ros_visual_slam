@@ -19,8 +19,8 @@ import launch
 from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import (ComposableNodeContainer, LoadComposableNodes, Node, SetParameter,
-                                SetRemap)
+from launch_ros.actions import (ComposableNodeContainer, LoadComposableNodes,
+                                SetParameter, SetRemap)
 from launch_ros.descriptions import ComposableNode
 
 
@@ -28,7 +28,7 @@ def generate_launch_description():
     """Launch file which brings up visual slam node configured for Hawk."""
     launch_args = [
         DeclareLaunchArgument('module_id',
-                              default_value='5',
+                              default_value='-1',
                               description='Index specifying the stereo camera module to use.'),
         DeclareLaunchArgument('use_rectify',
                               default_value='False',
@@ -37,15 +37,6 @@ def generate_launch_description():
 
     use_rectify = LaunchConfiguration('use_rectify')
     module_id = LaunchConfiguration('module_id')
-
-    argus_imu_camera_static_transform = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        arguments=[
-            '0.0947', '0.0061', '0.0', '0.0', '0.70710678', '0.0', '0.70710678', 'camera',
-            'bmi088_frame'
-        ],
-    )
 
     correlated_timestamp_driver_node = ComposableNode(
         package='isaac_ros_correlated_timestamp_driver',
@@ -119,8 +110,8 @@ def generate_launch_description():
             'accel_noise_density': 0.001862,
             'accel_random_walk': 0.003,
             'calibration_frequency': 200.0,
-            'base_frame': 'camera',
-            'imu_frame': 'bmi088_frame',
+            'base_frame': 'hawk',
+            'imu_frame': 'hawk_imu',
             'enable_ground_constraint_in_odometry': True,
             'enable_ground_constraint_in_slam': False,
             'enable_localization_n_mapping': False,
@@ -183,7 +174,6 @@ def generate_launch_description():
         SetRemap(src=['visual_slam/image_1'],
                  dst=['right/image_rect'],
                  condition=IfCondition(use_rectify)),
-        argus_imu_camera_static_transform,
         visual_slam_container,
         load_rectify_nodes,
     ])

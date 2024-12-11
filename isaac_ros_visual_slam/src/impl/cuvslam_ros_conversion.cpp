@@ -30,7 +30,7 @@ namespace visual_slam
 
 constexpr char kFisheye[] = "fisheye4";
 constexpr char kBrown[] = "brown5k";
-constexpr char kPinhole[] = "pinhole";
+constexpr char kPinhole[] = "plumb_bob";
 constexpr char kPolynomial[] = "polynomial";
 
 // ROS' DISTORTION MODELS:
@@ -136,7 +136,7 @@ void FillCameraDistortion(const CameraInfoType::ConstSharedPtr & msg, CUVSLAM_Ca
   if (distortion_model_name.empty() &&
     Eigen::Vector3d(distortion_params).isZero())
   {
-    distortion_model_name = "pinhole";
+    distortion_model_name = "plumb_bob";
   }
 
   if (distortion_model_name == sensor_msgs::distortion_models::PLUMB_BOB) {
@@ -145,7 +145,7 @@ void FillCameraDistortion(const CameraInfoType::ConstSharedPtr & msg, CUVSLAM_Ca
   if (distortion_model_name == sensor_msgs::distortion_models::EQUIDISTANT) {
     return FillDistortion<DistortionModel::FISHEYE>(msg, camera);
   }
-  if (distortion_model_name == "pinhole") {
+  if (distortion_model_name == "plumb_bob") {
     return FillDistortion<DistortionModel::PINHOLE>(msg, camera);
   }
   if (distortion_model_name == sensor_msgs::distortion_models::RATIONAL_POLYNOMIAL) {

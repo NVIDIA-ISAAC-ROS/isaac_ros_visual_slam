@@ -17,147 +17,49 @@
 
 import os
 import pathlib
-import time
+import sys
 
 from isaac_ros_test import IsaacROSBaseTest
 from isaac_ros_visual_slam_interfaces.srv import SetSlamPose
-
-import launch
-from launch_ros.actions import ComposableNodeContainer
-from launch_ros.descriptions import ComposableNode
-
 import pytest
 import rclpy
 
-_TEST_CASE_NAMESPACE = 'visual_slam_test_srv_set_slam_pose'
+sys.path.append(os.path.dirname(__file__))
+from helpers import run_cuvslam_from_bag, wait_for_odometry_message  # noqa: I100 E402
 
 
-def create_camera_remapping(camera: str, identifier: str, idx: int):
-    image_topic_src = f'/{camera}_stereo_camera/{identifier}/image_compressed'
-    image_topic_dst = IsaacROSVisualSlamTest.generate_namespace(
-        _TEST_CASE_NAMESPACE) + image_topic_src
-
-    info_topic_src = f'/{camera}_stereo_camera/{identifier}/camera_info'
-    info_topic_dst = IsaacROSVisualSlamTest.generate_namespace(
-        _TEST_CASE_NAMESPACE) + info_topic_src
-
-    return [f'{image_topic_src}:={image_topic_dst}', f'{info_topic_src}:={info_topic_dst}']
-
-
-def create_decoder(camera: str, identifier: str):
-    return ComposableNode(
-        name=f'{camera}_{identifier}_decoder_node',
-        package='isaac_ros_h264_decoder',
-        plugin='nvidia::isaac_ros::h264_decoder::DecoderNode',
-        namespace=IsaacROSVisualSlamTest.generate_namespace(_TEST_CASE_NAMESPACE) +
-        f'/{camera}_stereo_camera/{identifier}',
-        remappings=[
-            ('image_uncompressed', 'image_raw'),
-        ],
-    )
+_TEST_CASE_NAMESPACE = '/visual_slam_test_srv_set_slam_pose'
 
 
 @pytest.mark.rostest
 def generate_test_description():
-    nodes = []
-    nodes.append(create_decoder('front', 'left'))
-    nodes.append(create_decoder('front', 'right'))
-
-    nodes.append(
-        ComposableNode(
-            name='visual_slam_node',
-            package='isaac_ros_visual_slam',
-            plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
-            namespace=IsaacROSVisualSlamTest.generate_namespace(_TEST_CASE_NAMESPACE),
-            parameters=[{
-                'num_cameras': 2,
-                'min_num_images': 2,
-                'enable_image_denoising': False,
-                'rectified_images': False,
-                'enable_localization_n_mapping': True,
-                'enable_imu_fusion': False,
-                'map_frame': 'map',
-                'odom_frame': 'odom',
-                'base_frame': 'base_link',
-            }],
-            remappings=[
-                ('visual_slam/image_0', 'front_stereo_camera/left/image_raw'),
-                ('visual_slam/image_1', 'front_stereo_camera/right/image_raw'),
-                ('visual_slam/camera_info_0', 'front_stereo_camera/left/camera_info'),
-                ('visual_slam/camera_info_1', 'front_stereo_camera/right/camera_info'),
-            ],
-        ))
-
-    container = ComposableNodeContainer(
-        name='visual_slam_container',
-        namespace='',
-        package='rclcpp_components',
-        executable='component_container',
-        composable_node_descriptions=nodes,
-        output='screen',
-    )
-
-    cmd = [
-        'ros2', 'bag', 'play',
-        os.path.dirname(__file__) + '/test_cases/rosbags/r2b_galileo', '--remap'
-    ]
-    cmd.extend(create_camera_remapping('front', 'left', 0))
-    cmd.extend(create_camera_remapping('front', 'right', 1))
-    rosbag_play = launch.actions.ExecuteProcess(cmd=cmd, output='screen')
-
-    return IsaacROSVisualSlamTest.generate_test_description([
-        container,
-        rosbag_play,
-    ])
+    bag_path = pathlib.Path(__file__).parent / 'test_cases/rosbags/r2b_galileo'
+    override_parameters = {'load_map_folder_path': str(bag_path / 'cuvslam_map')}
+    return run_cuvslam_from_bag(_TEST_CASE_NAMESPACE, bag_path, override_parameters)
 
 
-class IsaacROSVisualSlamTest(IsaacROSBaseTest):
-    """This test expect the response from /visual_slam/set_slam_pose service."""
+class IsaacRosVisualSlamServiceTest(IsaacROSBaseTest):
+    """This test checks the functionality of the `visual_slam/set_slam_pose` service."""
 
-    filepath = pathlib.Path(os.path.dirname(__file__))
+    def test_localize_in_map_service(self):
+        self.assertTrue(wait_for_odometry_message(self.node, _TEST_CASE_NAMESPACE))
 
-    @IsaacROSBaseTest.for_each_test_case('rosbags')
-    def test_visual_slam_node(self, test_folder):
-        TIMEOUT = 20
-        END_TIME = time.time() + TIMEOUT
-
-        self.cli = self.node.create_client(
+        service_client = self.node.create_client(
             SetSlamPose,
-            '/isaac_ros_test/visual_slam_test_srv_set_slam_pose/visual_slam/set_slam_pose')
+            f'{_TEST_CASE_NAMESPACE}/visual_slam/set_slam_pose',
+        )
+        self.assertTrue(service_client.wait_for_service(timeout_sec=20))
 
-        while not self.cli.wait_for_service(timeout_sec=1.0):
-            self.assertLess(time.time(), END_TIME,
-                            'Timeout occurred while waiting for the set_slam_pose service')
-            self.node.get_logger().info('service not available, waiting again...')
+        request = SetSlamPose.Request()
+        request.pose.position.x = 1.0
+        request.pose.position.y = 2.0
+        request.pose.position.z = 3.0
+        request.pose.orientation.x = 0.0
+        request.pose.orientation.y = 0.0
+        request.pose.orientation.z = 0.0
+        request.pose.orientation.w = 1.0
 
-        self.req = SetSlamPose.Request()
-        self.req.pose.position.x = 1.0
-        self.req.pose.position.y = 2.0
-        self.req.pose.position.z = 3.0
-        self.req.pose.orientation.x = 0.0
-        self.req.pose.orientation.y = 0.0
-        self.req.pose.orientation.z = 0.0
-        self.req.pose.orientation.w = 1.0
-
-        try:
-            done = False
-
-            time.sleep(TIMEOUT)
-
-            self.future = self.cli.call_async(self.req)
-            rclpy.spin_until_future_complete(self.node, self.future, timeout_sec=TIMEOUT)
-            response = self.future.result()
-            self.assertNotEqual(
-                response, None,
-                'Timeout occurred while waiting for a response from set_slam_pose service.')
-
-            msg = f'SetSlamPose service response (success:{response.success})'
-            self.node.get_logger().info(msg)
-
-            if response.success:
-                done = True
-
-            self.assertTrue(done, ' service did not run successfully')
-
-        finally:
-            pass
+        response_future = service_client.call_async(request)
+        rclpy.spin_until_future_complete(self.node, response_future)
+        response = response_future.result()
+        self.assertTrue(response.success)

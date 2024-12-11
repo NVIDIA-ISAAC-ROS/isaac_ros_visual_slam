@@ -53,27 +53,27 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
                 plugin='nvidia::isaac_ros::image_proc::ImageFormatConverterNode',
                 name='image_format_node_left',
                 parameters=[{
-                        'encoding_desired': 'mono8',
-                        'image_width': interface_specs['camera_resolution']['width'],
-                        'image_height': interface_specs['camera_resolution']['height'],
+                    'encoding_desired': 'mono8',
+                    'image_width': interface_specs['camera_resolution']['width'],
+                    'image_height': interface_specs['camera_resolution']['height'],
                 }],
                 remappings=[
                     ('image_raw', 'left/image_rect'),
-                    ('image', 'left/image_rect_mono')]
-            ),
+                    ('image', 'left/image_rect_mono'),
+                ]),
             'image_format_converter_node_right': ComposableNode(
                 package='isaac_ros_image_proc',
                 plugin='nvidia::isaac_ros::image_proc::ImageFormatConverterNode',
                 name='image_format_node_right',
                 parameters=[{
-                        'encoding_desired': 'mono8',
-                        'image_width': interface_specs['camera_resolution']['width'],
-                        'image_height': interface_specs['camera_resolution']['height'],
+                    'encoding_desired': 'mono8',
+                    'image_width': interface_specs['camera_resolution']['width'],
+                    'image_height': interface_specs['camera_resolution']['height'],
                 }],
                 remappings=[
                     ('image_raw', 'right/image_rect'),
-                    ('image', 'right/image_rect_mono')]
-            ),
+                    ('image', 'right/image_rect_mono'),
+                ]),
             'visual_slam_node': ComposableNode(
                 name='visual_slam_node',
                 package='isaac_ros_visual_slam',
@@ -105,7 +105,7 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
                     ('/visual_slam/camera_info_2', 'rear_left/camera_info_rect'),
                     ('/visual_slam/image_3', 'rear_right/image_rect_mono'),
                     ('/visual_slam/camera_info_3', 'rear_right/camera_info_rect'),
-                ]
+                ],
             )
         }
 
@@ -115,23 +115,23 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
         return {
             'enable_image_denoising': DeclareLaunchArgument(
                 'enable_image_denoising',
-                default_value='False'
+                default_value='False',
             ),
             'rectified_images': DeclareLaunchArgument(
                 'rectified_images',
-                default_value='True'
+                default_value='True',
             ),
             'enable_slam_visualization': DeclareLaunchArgument(
                 'enable_slam_visualization',
-                default_value='True'
+                default_value='True',
             ),
             'enable_landmarks_view': DeclareLaunchArgument(
                 'enable_landmarks_view',
-                default_value='True'
+                default_value='True',
             ),
             'enable_observations_view': DeclareLaunchArgument(
                 'enable_observations_view',
-                default_value='True'
+                default_value='True',
             ),
             'camera_optical_frames': DeclareLaunchArgument(
                 'camera_optical_frames',
@@ -139,47 +139,47 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
                                 front_stereo_camera_right_optical, \
                                 rear_stereo_camera_left_optical, \
                                 rear_stereo_camera_right_optical,\
-                                ]'
+                                ]',
             ),
             'base_frame': DeclareLaunchArgument(
                 'base_frame',
-                default_value='base_link'
+                default_value='base_link',
             ),
             'num_cameras': DeclareLaunchArgument(
                 'num_cameras',
-                default_value='2'
+                default_value='2',
             ),
             'enable_imu_fusion': DeclareLaunchArgument(
                 'enable_imu_fusion',
-                default_value='False'
+                default_value='False',
             ),
             'imu_frame': DeclareLaunchArgument(
                 'imu_frame',
-                default_value='camera_gyro_optical_frame'
+                default_value='camera_gyro_optical_frame',
             ),
             'gyro_noise_density': DeclareLaunchArgument(
                 'gyro_noise_density',
-                default_value='0.000244'
+                default_value='0.000244',
             ),
             'gyro_random_walk': DeclareLaunchArgument(
                 'gyro_random_walk',
-                default_value='0.000019393'
+                default_value='0.000019393',
             ),
             'accel_noise_density': DeclareLaunchArgument(
                 'accel_noise_density',
-                default_value='0.001862'
+                default_value='0.001862',
             ),
             'accel_random_walk': DeclareLaunchArgument(
                 'accel_random_walk',
-                default_value='0.003'
+                default_value='0.003',
             ),
             'calibration_frequency': DeclareLaunchArgument(
                 'calibration_frequency',
-                default_value='200.0'
+                default_value='200.0',
             ),
             'image_jitter_threshold_ms': DeclareLaunchArgument(
                 'image_jitter_threshold_ms',
-                default_value='34.0'
+                default_value='34.0',
             )
         }
 
@@ -191,9 +191,9 @@ def generate_launch_description():
         namespace='',
         package='rclcpp_components',
         executable='component_container',
-        composable_node_descriptions=IsaacROSVisualSlamLaunchFragment
-        .get_composable_nodes().values(),
-        output='screen'
+        composable_node_descriptions=IsaacROSVisualSlamLaunchFragment.get_composable_nodes().
+        values(),
+        output='screen',
     )
 
     return launch.LaunchDescription([visual_slam_launch_container])

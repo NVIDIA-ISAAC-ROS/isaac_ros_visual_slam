@@ -22,7 +22,8 @@
 #include <functional>
 #include <utility>
 #include <vector>
-#include "message_buffer.hpp"
+
+#include "isaac_common/messaging/message_buffer.hpp"
 
 namespace nvidia
 {
@@ -51,10 +52,9 @@ public:
   void RegisterCallback(Callback callback);
 
 private:
-  // Buffer
-  MessageBuffer<T1> stream1_buff_;
+  isaac_common::messaging::MessageBuffer<T1> stream1_buff_;
   int64_t epsilon_stream1_;
-  MessageBuffer<T2> stream2_buff_;
+  isaac_common::messaging::MessageBuffer<T2> stream2_buff_;
   int64_t epsilon_stream2_;
   Callback registered_callback_ = [](const std::vector<T1> &, const T2 &) {};
 };

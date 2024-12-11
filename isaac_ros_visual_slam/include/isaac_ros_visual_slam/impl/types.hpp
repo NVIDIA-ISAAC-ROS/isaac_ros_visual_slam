@@ -24,21 +24,23 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "isaac_ros_managed_nitros/managed_nitros_subscriber.hpp"
-#include "isaac_ros_nitros_image_type/nitros_image_view.hpp"
 #include "isaac_ros_nitros/types/nitros_type_message_filter_traits.hpp"
-#include "isaac_ros_visual_slam_interfaces/action/load_map_and_localize.hpp"
-#include "isaac_ros_visual_slam_interfaces/action/save_map.hpp"
+#include "isaac_ros_nitros_image_type/nitros_image_view.hpp"
 #include "isaac_ros_visual_slam_interfaces/msg/visual_slam_status.hpp"
+#include "isaac_ros_visual_slam_interfaces/srv/file_path.hpp"
 #include "isaac_ros_visual_slam_interfaces/srv/get_all_poses.hpp"
+#include "isaac_ros_visual_slam_interfaces/srv/localize_in_map.hpp"
 #include "isaac_ros_visual_slam_interfaces/srv/reset.hpp"
 #include "isaac_ros_visual_slam_interfaces/srv/set_slam_pose.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
+
 
 using ImageType = nvidia::isaac_ros::nitros::NitrosImageView;
 using CameraInfoType = sensor_msgs::msg::CameraInfo;
@@ -65,11 +67,10 @@ using DiagnosticArrayType = diagnostic_msgs::msg::DiagnosticArray;
 using DiagnosticStatusType = diagnostic_msgs::msg::DiagnosticStatus;
 using KeyValueType = diagnostic_msgs::msg::KeyValue;
 
-using SrvReset = isaac_ros_visual_slam_interfaces::srv::Reset;
+using SrvFilePath = isaac_ros_visual_slam_interfaces::srv::FilePath;
 using SrvGetAllPoses = isaac_ros_visual_slam_interfaces::srv::GetAllPoses;
+using SrvLocalizeInMap = isaac_ros_visual_slam_interfaces::srv::LocalizeInMap;
+using SrvReset = isaac_ros_visual_slam_interfaces::srv::Reset;
 using SrvSetSlamPose = isaac_ros_visual_slam_interfaces::srv::SetSlamPose;
-
-using ActionSaveMap = isaac_ros_visual_slam_interfaces::action::SaveMap;
-using ActionLoadMapAndLocalize = isaac_ros_visual_slam_interfaces::action::LoadMapAndLocalize;
 
 #endif  // ISAAC_ROS_VISUAL_SLAM__IMPL__TYPES_HPP_
