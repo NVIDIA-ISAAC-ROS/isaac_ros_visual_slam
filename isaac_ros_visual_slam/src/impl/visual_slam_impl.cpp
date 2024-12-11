@@ -20,6 +20,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <filesystem>
 
 #include "eigen3/Eigen/Dense"
 #include "isaac_ros_nitros/types/type_utility.hpp"
@@ -199,8 +200,8 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
     const rclcpp::Time stamp(camera_info_msg.value()->header.stamp);
     cuvslam_cameras[idx].parameters = intrinsics[idx].data();
     FillIntrinsics(camera_info_msg.value(), cuvslam_cameras[idx]);
-    const tf2::Transform base_link_pose_camera_optical = GetFrameTransform(
-      stamp, base_frame,
+    const tf2::Transform base_link_pose_camera_optical = GetLatestTransform(
+      base_frame,
       camera_optical_frames[idx]);
     if (node.rectified_images_) {
       const tf2::Matrix3x3 rectification_matrix(
@@ -271,7 +272,7 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
     // Convert the base_pose_imu from ROS to cuVSLAM frame
     const rclcpp::Time stamp(initial_imu_message.value()->header.stamp);
     cv_base_link_pose_cv_imu =
-      ChangeBasis(cuvslam_pose_canonical, GetFrameTransform(stamp, base_frame, imu_frame));
+      ChangeBasis(cuvslam_pose_canonical, GetLatestTransform(base_frame, imu_frame));
   }
 
   // Create cuvslam tracker.
@@ -315,6 +316,23 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
   }
   cuvslam_handle = tracker;
   RCLCPP_INFO(node.get_logger(), "cuVSLAM tracker was successfully initialized.");
+
+  if (node.localize_on_startup_) {
+    // We don't care when this thread returns since we anyways can't do anything if the localization
+    // fails. Thus we detach it.
+    std::thread(
+      [this]() {
+        const PoseType identity;
+        const auto maybe_pose = LocalizeInMap(
+          node.load_map_folder_path_, identity,
+          node.map_frame_);
+        if (!maybe_pose) {
+          RCLCPP_WARN(
+            node.get_logger(),
+            "Could not localize on startup. Try with a different map or different pose hint.");
+        }
+      }).detach();
+  }
 }
 
 void VisualSlamNode::VisualSlamImpl::Exit()
@@ -347,6 +365,15 @@ void VisualSlamNode::VisualSlamImpl::Exit()
 
   initial_imu_message.reset();
   initial_camera_info_messages.clear();
+
+  // Try to set the promise if localization has not returned yet. We don't know if the response is
+  // outstanding so we just try it and catch the exception.
+  LocalizeInExistDbContext::Response response;
+  response.status = CUVSLAM_CAN_NOT_LOCALIZE;
+  try {
+    localize_in_exist_db_context.response_promise.set_value(response);
+  } catch (const std::exception & e) {
+  }
 }
 
 CUVSLAM_Configuration VisualSlamNode::VisualSlamImpl::CreateConfiguration(
@@ -370,6 +397,7 @@ CUVSLAM_Configuration VisualSlamNode::VisualSlamImpl::CreateConfiguration(
   configuration.debug_imu_mode = node.enable_debug_imu_mode_ ? 1 : 0;
   configuration.max_frame_delta_ms = node.image_jitter_threshold_ms_;
   configuration.planar_constraints = node.enable_ground_constraint_in_slam_ ? 1 : 0;
+  configuration.slam_throttling_time_ms = node.slam_throttling_time_ms_;
 
   CUVSLAM_ImuCalibration imu_calibration;
   imu_calibration.rig_from_imu = cv_base_link_pose_cv_imu;
@@ -379,6 +407,16 @@ CUVSLAM_Configuration VisualSlamNode::VisualSlamImpl::CreateConfiguration(
   imu_calibration.accelerometer_random_walk = node.imu_params_.accelerometer_random_walk;
   imu_calibration.frequency = node.imu_params_.calibration_frequency;
   configuration.imu_calibration = imu_calibration;
+
+  CUVSLAM_LocalizationSettings localization_settings;
+  localization_settings.horizontal_search_radius = node.localizer_horizontal_radius_;
+  localization_settings.vertical_search_radius = node.localizer_vertical_radius_;
+  localization_settings.horizontal_step = node.localizer_horizontal_step_;
+  localization_settings.vertical_step = node.localizer_vertical_step_;
+  localization_settings.angular_step_rads = node.localizer_angular_step_;
+  configuration.localization_settings = localization_settings;
+
+  configuration.slam_max_map_size = node.slam_max_map_size_;
 
   return configuration;
 }
@@ -397,25 +435,25 @@ void VisualSlamNode::VisualSlamImpl::PublishFrameTransform(
 }
 
 // Helper function to get child frame pose wrt parent frame from the tf tree
-tf2::Transform VisualSlamNode::VisualSlamImpl::GetFrameTransform(
-  rclcpp::Time stamp, const std::string & target, const std::string & source)
+tf2::Transform VisualSlamNode::VisualSlamImpl::GetLatestTransform(
+  const std::string & target, const std::string & source)
 {
   geometry_msgs::msg::TransformStamped transform_stamped;
   tf2::Transform pose;
 
   // Time out duration for TF tree lookup before throwing an exception.
-  constexpr int32_t kTimeOutSeconds = 1;
-  constexpr uint32_t kTimeOutNanoSeconds = 0;
+  constexpr int32_t kTimeOutSeconds = 10;
+
   try {
     if (!tf_buffer->canTransform(
-        target, source, stamp, rclcpp::Duration(kTimeOutSeconds, kTimeOutNanoSeconds)))
+        target, source, tf2::TimePointZero, tf2::durationFromSec(kTimeOutSeconds)))
     {
       RCLCPP_ERROR(
         node.get_logger(), "Transform is impossible. canTransform(%s->%s) returns false",
         target.c_str(), source.c_str());
     }
     transform_stamped = tf_buffer->lookupTransform(
-      target, source, stamp, rclcpp::Duration(kTimeOutSeconds, kTimeOutNanoSeconds));
+      target, source, tf2::TimePointZero, tf2::durationFromSec(kTimeOutSeconds));
     tf2::fromMsg(transform_stamped.transform, pose);
   } catch (tf2::TransformException & ex) {
     RCLCPP_INFO(
@@ -665,6 +703,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   CUVSLAM_PoseEstimate vo_pose_estimate;
   nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
     "CUVSLAM_Track", nvidia::isaac_ros::nitros::CLR_MAGENTA);
+
   const CUVSLAM_Status vo_status =
     CUVSLAM_TrackGpuMem(
     cuvslam_handle, cuvslam_images.data(), cuvslam_images.size(), nullptr,
@@ -917,6 +956,9 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
     status.values.emplace_back();
     status.values.back().key = "track_execution_time_mean";
     status.values.back().value = std::to_string(track_execution_time_mean);
+    status.values.emplace_back();
+    status.values.back().key = "localized_in_exist_map";
+    status.values.back().value = localized_in_exist_map_ ? "Yes" : "No";
     node.diagnostics_pub_->publish(diagnostics);
   }
 
@@ -924,81 +966,179 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
 }
 
-// Asynchronous response for CUVSLAM_SaveToSlamDb()
-void VisualSlamNode::VisualSlamImpl::SaveToSlamDbResponse(
-  void * cnt,
-  CUVSLAM_Status status)
+
+CUVSLAM_Status VisualSlamNode::VisualSlamImpl::SaveMap(const std::string & map_folder_path)
 {
-  SaveToSlamDbContext * context = static_cast<SaveToSlamDbContext *>(cnt);
+  RCLCPP_INFO(node.get_logger(), "Saving map to %s", map_folder_path.c_str());
 
-  auto result = std::make_shared<ActionSaveMap::Result>();
-  result->success = false;
-
-  if (status == CUVSLAM_SUCCESS) {
-    // publish_feedback
-    if (context->goal_handle) {
-      result->success = true;
-      context->goal_handle->succeed(result);
-    }
-  } else {
-    // abort
-    if (context->goal_handle) {
-      context->goal_handle->abort(result);
-    }
+  if (!node.enable_localization_n_mapping_) {
+    RCLCPP_WARN(
+      node.get_logger(),
+      "Cannot save map because `enable_localization_n_mapping` is set to false.");
+    return CUVSLAM_SLAM_IS_NOT_INITIALIZED;
   }
 
-  delete context;
+  // Create context.
+  SaveToSlamDbContext context;
+  auto response_future = context.response_promise.get_future();
+  if (!response_future.valid()) {
+    RCLCPP_ERROR(node.get_logger(), "Future is invalid.");
+    return CUVSLAM_GENERIC_ERROR;
+  }
+
+  // Trigger the saving asynchronously.
+  const CUVSLAM_Status call_result = CUVSLAM_SaveToSlamDb(
+    cuvslam_handle,
+    map_folder_path.c_str(),
+    &VisualSlamNode::VisualSlamImpl::SaveToSlamDbResponse,
+    &context);
+
+  if (call_result != CUVSLAM_SUCCESS) {
+    RCLCPP_ERROR(node.get_logger(), "CUVSLAM_SaveToSlamDb Error %d", call_result);
+    return call_result;
+  }
+
+  // We manually call CUVSLAM_Track to "tick" the async actions inside of cuvslam.
+  // Without this the map saving may not finish.
+  CUVSLAM_Track(
+    cuvslam_handle, /*images=*/ nullptr, /*images_size=*/ 0,
+    /*predicted_pose=*/ nullptr, /*pose_estimate=*/ nullptr);
+
+  const SaveToSlamDbContext::Response response = response_future.get();
+  if (response.status != CUVSLAM_SUCCESS) {
+    RCLCPP_ERROR(node.get_logger(), "Failed to save map. Error %d", response.status);
+    return response.status;
+  }
+
+  RCLCPP_INFO(node.get_logger(), "Finished saving map with status %d.", response.status);
+  return response.status;
+}
+
+
+boost::future<VisualSlamNode::VisualSlamImpl::LocalizeInExistDbContext::Response> VisualSlamNode::
+VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
+  const std::string & map_folder_path,
+  const CUVSLAM_Pose & pose_hint)
+{
+  localize_in_exist_db_context = LocalizeInExistDbContext();
+  LocalizeInExistDbContext & context = localize_in_exist_db_context;
+  auto response_future = context.response_promise.get_future();
+
+  if (!node.enable_localization_n_mapping_) {
+    RCLCPP_ERROR(
+      node.get_logger(),
+      "Cannot localize in map because `enable_localization_n_mapping` is set to false.");
+    LocalizeInExistDbResponse(&context, CUVSLAM_SLAM_IS_NOT_INITIALIZED, nullptr);
+    return response_future;
+  }
+
+  if (!std::filesystem::is_directory(map_folder_path)) {
+    RCLCPP_ERROR(
+      node.get_logger(),
+      "Map folder '%s' does not exist.", map_folder_path.c_str());
+    LocalizeInExistDbResponse(&context, CUVSLAM_GENERIC_ERROR, nullptr);
+    return response_future;
+  }
+
+
+  const CUVSLAM_Status call_result = CUVSLAM_LocalizeInExistDb(
+    cuvslam_handle,
+    map_folder_path.c_str(),
+    &pose_hint,
+    /*images=*/ nullptr,
+    /*images_size=*/ 0,
+    &VisualSlamNode::VisualSlamImpl::LocalizeInExistDbResponse,
+    &context);
+
+  if (call_result != CUVSLAM_SUCCESS) {
+    RCLCPP_ERROR(node.get_logger(), "CUVSLAM_LocalizeInExistDb Error %d", call_result);
+    // NOTE: Even if CUVSLAM_LocalizeInExistDb fails, we still expect it to call the callback. We
+    // rely on the callback to set the value of the response_promise.
+  }
+
+  return response_future;
+}
+
+boost::future<std::optional<PoseType>> VisualSlamNode::VisualSlamImpl::LocalizeInMapAsync(
+  const std::string & map_folder_path,
+  const PoseType & pose_hint,
+  const std::string & frame_id)
+{
+  RCLCPP_INFO(
+    node.get_logger(), "Trying to localize in map '%s' around [%f, %f, %f]",
+    map_folder_path.c_str(), pose_hint.position.x, pose_hint.position.y,
+    pose_hint.position.z);
+  // Convert the pose hint from ROS coordinates to cuvslam coordinates.
+  tf2::Transform frame_id_pose_base;
+  tf2::fromMsg(pose_hint, frame_id_pose_base);
+  const tf2::Transform map_pose_frame_id = GetLatestTransform(node.map_frame_, frame_id);
+  const tf2::Transform map_pose_base = map_pose_frame_id * frame_id_pose_base;
+  const tf2::Transform cv_map_pose_cv_base = ChangeBasis(cuvslam_pose_canonical, map_pose_base);
+  const CUVSLAM_Pose pose_hint_cv = TocuVSLAMPose(cv_map_pose_cv_base);
+
+  auto extract_pose_in_ros_conventions =
+    [&](boost::future<LocalizeInExistDbContext::Response> response_future)
+    -> std::optional<PoseType>
+    {
+      const auto response = response_future.get();
+      if (response.status != CUVSLAM_SUCCESS) {
+        RCLCPP_ERROR(node.get_logger(), "Failed to localize in map. Error %d", response.status);
+        localizer_helper.SetResult(false, tf2::Transform());
+        localized_in_exist_map_ = false;
+        return std::nullopt;
+      }
+
+      // Convert the pose back from cuvslam coordinates to ROS coordinates.
+      const tf2::Transform cv_map_pose_cv_base_link = FromcuVSLAMPose(response.pose_in_db);
+      const tf2::Transform map_pose_base_link = ChangeBasis(
+        canonical_pose_cuvslam,
+        cv_map_pose_cv_base_link);
+      localizer_helper.SetResult(true, map_pose_base_link);
+
+      localized_in_exist_map_ = true;
+
+      const auto pt = map_pose_base_link.getOrigin();
+      RCLCPP_INFO(node.get_logger(), "Successfully localized at {%f, %f, %f}", pt[0], pt[1], pt[2]);
+
+      PoseType localized_pose;
+      tf2::toMsg(map_pose_base_link, localized_pose);
+      return localized_pose;
+    };
+
+  return CuvslamInternalLocalizeInMapAsync(
+    map_folder_path,
+    pose_hint_cv).then(std::move(extract_pose_in_ros_conventions));
+}
+
+std::optional<PoseType> VisualSlamNode::VisualSlamImpl::LocalizeInMap(
+  const std::string & map_folder_path,
+  const PoseType & pose_hint,
+  const std::string & frame_id)
+{
+  return LocalizeInMapAsync(map_folder_path, pose_hint, frame_id).get();
+}
+
+void VisualSlamNode::VisualSlamImpl::SaveToSlamDbResponse(
+  void * anonymous_context,
+  CUVSLAM_Status status)
+{
+  SaveToSlamDbContext * context = static_cast<SaveToSlamDbContext *>(anonymous_context);
+  SaveToSlamDbContext::Response response;
+  response.status = status;
+  context->response_promise.set_value(response);
 }
 
 // Asynchronous response for CUVSLAM_LocalizeInExistDb()
 void VisualSlamNode::VisualSlamImpl::LocalizeInExistDbResponse(
-  void * cnt, CUVSLAM_Status status, const struct CUVSLAM_Pose * pose_in_db)
+  void * anonymous_context, CUVSLAM_Status status, const struct CUVSLAM_Pose * pose_in_db)
 {
-  LocalizeInExistDbContext * context = static_cast<LocalizeInExistDbContext *>(cnt);
-
-  auto result = std::make_shared<ActionLoadMapAndLocalize::Result>();
-  result->success = false;
-
-  VisualSlamNode::VisualSlamImpl * impl = context->impl;
-  if (status == CUVSLAM_SUCCESS && impl) {
-    if (!pose_in_db) {
-      // abort
-      if (context->goal_handle) {
-        context->goal_handle->abort(result);
-      }
-      RCLCPP_ERROR(
-        impl->node.get_logger(), "Wrong arg in LocalizeInExistDbResponse())");
-      delete context;
-      return;
-    }
-
-    const tf2::Transform cv_map_pose_cv_base_link = FromcuVSLAMPose(*pose_in_db);
-    const tf2::Transform map_pose_base_link =
-      ChangeBasis(canonical_pose_cuvslam, cv_map_pose_cv_base_link);
-
-    // Publish feedback
-    if (context->goal_handle) {
-      tf2::toMsg(map_pose_base_link, result->pose);
-      result->success = true;
-      context->goal_handle->succeed(result);
-    }
-
-    // To localizer_helper
-    const auto pt = map_pose_base_link.getOrigin();
-    RCLCPP_INFO(impl->node.get_logger(), "Localization result {%f, %f, %f}", pt[0], pt[1], pt[2]);
-    impl->localizer_helper.SetResult(true, map_pose_base_link);
-  } else {
-    // Abort
-    if (context->goal_handle) {
-      context->goal_handle->abort(result);
-    }
-    // To localizer_helper
-    if (impl) {
-      impl->localizer_helper.SetResult(false, tf2::Transform());
-      RCLCPP_WARN(impl->node.get_logger(), "Localization failed. Status=%d", status);
-    }
+  LocalizeInExistDbContext * context = static_cast<LocalizeInExistDbContext *>(anonymous_context);
+  LocalizeInExistDbContext::Response response;
+  response.status = status;
+  if (status == CUVSLAM_SUCCESS) {
+    response.pose_in_db = *pose_in_db;
   }
-  delete context;
+  context->response_promise.set_value(response);
 }
 
 }  // namespace visual_slam

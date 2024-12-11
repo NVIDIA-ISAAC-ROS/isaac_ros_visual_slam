@@ -18,41 +18,44 @@
 import os
 import pathlib
 import sys
+import uuid
 
 from isaac_ros_test import IsaacROSBaseTest
-from isaac_ros_visual_slam_interfaces.srv import GetAllPoses
+from isaac_ros_visual_slam_interfaces.srv import FilePath
 import pytest
 import rclpy
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import run_cuvslam_from_bag, wait_for_odometry_message  # noqa: I100 E402
 
-_TEST_CASE_NAMESPACE = '/visual_slam_test_srv_get_all_poses'
+_TEST_CASE_NAMESPACE = '/visual_slam_test_srv_save_map'
 
 
 @pytest.mark.rostest
 def generate_test_description():
     bag_path = pathlib.Path(__file__).parent / 'test_cases/rosbags/r2b_galileo'
-    override_parameters = {'load_map_folder_path': str(bag_path / 'cuvslam_map')}
-    return run_cuvslam_from_bag(_TEST_CASE_NAMESPACE, bag_path, override_parameters)
+    return run_cuvslam_from_bag(_TEST_CASE_NAMESPACE, bag_path)
 
 
 class IsaacRosVisualSlamServiceTest(IsaacROSBaseTest):
-    """This test checks the functionality of the `visual_slam/get_all_poses` service."""
+    """This test checks the functionality of the `visual_slam/save_map` service."""
 
-    def test_localize_in_map_service(self):
+    def test_save_map_service(self):
         self.assertTrue(wait_for_odometry_message(self.node, _TEST_CASE_NAMESPACE))
 
         service_client = self.node.create_client(
-            GetAllPoses,
-            f'{_TEST_CASE_NAMESPACE}/visual_slam/get_all_poses',
+            FilePath,
+            f'{_TEST_CASE_NAMESPACE}/visual_slam/save_map',
         )
         self.assertTrue(service_client.wait_for_service(timeout_sec=20))
 
-        request = GetAllPoses.Request()
-        request.max_count = 10
+        map_path = pathlib.Path(f'/tmp/cuvslam_map_{uuid.uuid4().hex.lower()}')
+        request = FilePath.Request()
+        request.file_path = str(map_path)
 
         response_future = service_client.call_async(request)
         rclpy.spin_until_future_complete(self.node, response_future)
         response = response_future.result()
         self.assertTrue(response.success)
+
+        self.assertTrue(map_path.exists())

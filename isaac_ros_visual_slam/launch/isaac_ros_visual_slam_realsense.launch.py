@@ -28,18 +28,18 @@ def generate_launch_description():
         package='realsense2_camera',
         executable='realsense2_camera_node',
         parameters=[{
-                'enable_infra1': True,
-                'enable_infra2': True,
-                'enable_color': False,
-                'enable_depth': False,
-                'depth_module.emitter_enabled': 0,
-                'depth_module.profile': '640x360x90',
-                'enable_gyro': True,
-                'enable_accel': True,
-                'gyro_fps': 200,
-                'accel_fps': 200,
-                'unite_imu_method': 2
-        }]
+            'enable_infra1': True,
+            'enable_infra2': True,
+            'enable_color': False,
+            'enable_depth': False,
+            'depth_module.emitter_enabled': 0,
+            'depth_module.profile': '640x360x90',
+            'enable_gyro': True,
+            'enable_accel': True,
+            'gyro_fps': 200,
+            'accel_fps': 200,
+            'unite_imu_method': 2
+        }],
     )
 
     visual_slam_node = ComposableNode(
@@ -47,30 +47,32 @@ def generate_launch_description():
         package='isaac_ros_visual_slam',
         plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         parameters=[{
-                    'enable_image_denoising': False,
-                    'rectified_images': True,
-                    'enable_imu_fusion': True,
-                    'gyro_noise_density': 0.000244,
-                    'gyro_random_walk': 0.000019393,
-                    'accel_noise_density': 0.001862,
-                    'accel_random_walk': 0.003,
-                    'calibration_frequency': 200.0,
-                    'image_jitter_threshold_ms': 22.00,
-                    'base_frame': 'camera_link',
-                    'imu_frame': 'camera_gyro_optical_frame',
-                    'enable_slam_visualization': True,
-                    'enable_landmarks_view': True,
-                    'enable_observations_view': True,
-                    'camera_optical_frames': [
-                        'camera_infra1_optical_frame',
-                        'camera_infra2_optical_frame',
-                    ],
-                    }],
-        remappings=[('visual_slam/image_0', 'camera/infra1/image_rect_raw'),
-                    ('visual_slam/camera_info_0', 'camera/infra1/camera_info'),
-                    ('visual_slam/image_1', 'camera/infra2/image_rect_raw'),
-                    ('visual_slam/camera_info_1', 'camera/infra2/camera_info'),
-                    ('visual_slam/imu', 'camera/imu')]
+            'enable_image_denoising': False,
+            'rectified_images': True,
+            'enable_imu_fusion': True,
+            'gyro_noise_density': 0.000244,
+            'gyro_random_walk': 0.000019393,
+            'accel_noise_density': 0.001862,
+            'accel_random_walk': 0.003,
+            'calibration_frequency': 200.0,
+            'image_jitter_threshold_ms': 22.00,
+            'base_frame': 'camera_link',
+            'imu_frame': 'camera_gyro_optical_frame',
+            'enable_slam_visualization': True,
+            'enable_landmarks_view': True,
+            'enable_observations_view': True,
+            'camera_optical_frames': [
+                'camera_infra1_optical_frame',
+                'camera_infra2_optical_frame',
+            ],
+        }],
+        remappings=[
+            ('visual_slam/image_0', 'camera/infra1/image_rect_raw'),
+            ('visual_slam/camera_info_0', 'camera/infra1/camera_info'),
+            ('visual_slam/image_1', 'camera/infra2/image_rect_raw'),
+            ('visual_slam/camera_info_1', 'camera/infra2/camera_info'),
+            ('visual_slam/imu', 'camera/imu'),
+        ],
     )
 
     visual_slam_launch_container = ComposableNodeContainer(
@@ -79,7 +81,7 @@ def generate_launch_description():
         package='rclcpp_components',
         executable='component_container',
         composable_node_descriptions=[visual_slam_node],
-        output='screen'
+        output='screen',
     )
 
     return launch.LaunchDescription([visual_slam_launch_container, realsense_camera_node])
