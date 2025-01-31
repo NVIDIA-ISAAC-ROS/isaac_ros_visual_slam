@@ -88,7 +88,7 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
       std::vector<std::string>{})),
   imu_frame_(declare_parameter<std::string>("imu_frame", "")),
   // Message Parameters:
-  image_buffer_size_(declare_parameter<int>("image_buffer_size", 100)),
+  image_buffer_size_(declare_parameter<int>("image_buffer_size", 10)),
   imu_buffer_size_(declare_parameter<int>("imu_buffer_size", 50)),
   image_qos_(::isaac_ros::common::AddQosParameter(*this, "SENSOR_DATA", "image_qos")),
   imu_qos_(::isaac_ros::common::AddQosParameter(*this, "SENSOR_DATA", "imu_qos")),
