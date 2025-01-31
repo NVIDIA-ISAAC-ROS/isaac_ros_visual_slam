@@ -17,7 +17,7 @@ Jetson](https://gateway.on24.com/wcc/experience/elitenvidiabrill/1407606/3998202
 
 ## Overview
 
-[Isaac ROS Visual SLAM](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam)
+Isaac ROS Visual SLAM
 provides a high-performance, best-in-class ROS 2 package
 for VSLAM (visual simultaneous localization and mapping). This package
 uses one or more stereo cameras and optionally an IMU to estimate
