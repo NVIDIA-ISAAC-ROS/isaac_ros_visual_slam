@@ -103,7 +103,7 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   enable_observations_view_(declare_parameter<bool>("enable_observations_view", false)),
   enable_landmarks_view_(declare_parameter<bool>("enable_landmarks_view", false)),
   path_max_size_(declare_parameter<int>("path_max_size", 1024)),
-  verbosity_(declare_parameter<int>("verbosity", 0)),
+  verbosity_(declare_parameter<int>("verbosity", 1)),
   enable_debug_mode_(declare_parameter<bool>("enable_debug_mode", false)),
   debug_dump_path_(declare_parameter<std::string>("debug_dump_path", "/tmp/cuvslam")),
   enable_request_hint_(declare_parameter<bool>("enable_request_hint", true)),
