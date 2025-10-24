@@ -34,7 +34,6 @@
 #include "isaac_ros_visual_slam_interfaces/srv/set_slam_pose.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
-#include "rclcpp_action/rclcpp_action.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/imu.hpp"

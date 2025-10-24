@@ -21,10 +21,10 @@
 #include <string>
 
 #include "cuvslam.h" // NOLINT - include .h without directory
-#include "cv_bridge/cv_bridge.h"
+#include "cv_bridge/cv_bridge.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "tf2/LinearMath/Transform.h"
-#include "eigen3/Eigen/Eigen"
+#include "Eigen/Eigen"
 
 namespace nvidia
 {
@@ -78,7 +78,8 @@ tf2::Transform FromcuVSLAMPose(const CUVSLAM_Pose & cuvslam_pose);
 CUVSLAM_ImageEncoding TocuVSLAMImageEncoding(const std::string & image_encoding);
 
 CUVSLAM_Image TocuVSLAMImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns);
+  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns,
+  const ImageType * input_mask = nullptr);
 
 CUVSLAM_ImuMeasurement TocuVSLAMImuMeasurement(const ImuType::ConstSharedPtr & msg_imu);
 

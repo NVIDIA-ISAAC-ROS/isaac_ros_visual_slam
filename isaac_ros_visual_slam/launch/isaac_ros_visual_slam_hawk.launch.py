@@ -42,10 +42,7 @@ def generate_launch_description():
         package='isaac_ros_correlated_timestamp_driver',
         plugin='nvidia::isaac_ros::correlated_timestamp_driver::CorrelatedTimestampDriverNode',
         name='correlated_timestamp_driver',
-        parameters=[{
-            'use_time_since_epoch': False,
-            'nvpps_dev_file': '/dev/nvpps0'
-        }])
+    )
 
     hawk_node = ComposableNode(
         name='hawk_front_node',

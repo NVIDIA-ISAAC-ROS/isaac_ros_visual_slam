@@ -25,9 +25,20 @@ endif()
 execute_process(COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
 message( STATUS "Architecture: ${ARCHITECTURE}" )
 
-find_package(Boost COMPONENTS thread REQUIRED)
+find_package(Boost COMPONENTS thread chrono REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
+
+# Ensure CUDA imported targets (e.g., CUDA::nvtx3) are available
+find_package(CUDAToolkit REQUIRED)
+
+# NVTX
+option(USE_NVTX "Enable NVTX markers for improved profiling (if available)" ON)
+if(USE_NVTX)
+    add_definitions(-DUSE_NVTX)
+    link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib64")
+    link_libraries("CUDA::nvtx3")
+endif()
 
 # Dependencies
 find_package(Threads REQUIRED)
@@ -62,7 +73,7 @@ ament_auto_add_library(
   src/impl/visual_slam_impl.cpp
   src/impl/viz_helper.cpp
 )
-target_link_libraries(visual_slam_node cuvslam Boost::thread)
+target_link_libraries(visual_slam_node cuvslam Boost::thread Boost::chrono)
 rclcpp_components_register_nodes(visual_slam_node "nvidia::isaac_ros::visual_slam::VisualSlamNode")
 set(node_plugins "${node_plugins}nvidia::isaac_ros::visual_slam::VisualSlamNode;$<TARGET_FILE:visual_slam_node>\n")
 

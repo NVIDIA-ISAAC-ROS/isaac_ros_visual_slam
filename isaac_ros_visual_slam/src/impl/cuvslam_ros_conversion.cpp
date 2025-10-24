@@ -15,7 +15,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 #include "isaac_ros_visual_slam/impl/cuvslam_ros_conversion.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "sensor_msgs/distortion_models.hpp"
@@ -30,7 +30,7 @@ namespace visual_slam
 
 constexpr char kFisheye[] = "fisheye4";
 constexpr char kBrown[] = "brown5k";
-constexpr char kPinhole[] = "plumb_bob";
+constexpr char kPinhole[] = "pinhole";
 constexpr char kPolynomial[] = "polynomial";
 
 // ROS' DISTORTION MODELS:
@@ -145,7 +145,7 @@ void FillCameraDistortion(const CameraInfoType::ConstSharedPtr & msg, CUVSLAM_Ca
   if (distortion_model_name == sensor_msgs::distortion_models::EQUIDISTANT) {
     return FillDistortion<DistortionModel::FISHEYE>(msg, camera);
   }
-  if (distortion_model_name == "plumb_bob") {
+  if (distortion_model_name == "plumb_bob" || distortion_model_name == "pinhole") {
     return FillDistortion<DistortionModel::PINHOLE>(msg, camera);
   }
   if (distortion_model_name == sensor_msgs::distortion_models::RATIONAL_POLYNOMIAL) {
@@ -232,11 +232,20 @@ CUVSLAM_ImageEncoding TocuVSLAMImageEncoding(const std::string & image_encoding)
 
 // Helper function to create CUVSLAM_Image from NitrosImageView.
 CUVSLAM_Image TocuVSLAMImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns)
+  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns,
+  const ImageType * input_mask)
 {
   CUVSLAM_Image cuvslam_image;
   cuvslam_image.timestamp_ns = acqtime_ns;
   cuvslam_image.pixels = image_view.GetGpuData();
+  if (!input_mask) {
+    cuvslam_image.input_mask = nullptr;
+  } else {
+    cuvslam_image.input_mask = input_mask->GetGpuData();
+    cuvslam_image.mask_width = input_mask->GetWidth();
+    cuvslam_image.mask_height = input_mask->GetHeight();
+    cuvslam_image.mask_pitch = input_mask->GetStride();
+  }
   cuvslam_image.width = image_view.GetWidth();
   cuvslam_image.height = image_view.GetHeight();
   cuvslam_image.camera_index = camera_index;

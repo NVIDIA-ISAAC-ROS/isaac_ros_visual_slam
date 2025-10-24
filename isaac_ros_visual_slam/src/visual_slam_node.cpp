@@ -45,6 +45,7 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
 : Node("visual_slam", options),
   // Functional Parameters:
   num_cameras_(declare_parameter<int>("num_cameras", 2)),
+  num_input_masks_(declare_parameter<int>("num_input_masks", 0)),
   multicam_mode_(declare_parameter<int>("multicam_mode", 1)),
   min_num_images_(declare_parameter<int>("min_num_images", num_cameras_)),
   sync_matching_threshold_ms_(declare_parameter<double>("sync_matching_threshold_ms", 5.0)),
@@ -121,6 +122,27 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
               "visual_slam/image_" + std::to_string(i),
               nvidia::isaac_ros::nitros::nitros_image_rgb8_t::supported_type_name,
               std::bind(&VisualSlamNode::CallbackImage, this, i, std::placeholders::_1),
+              nvidia::isaac_ros::nitros::NitrosDiagnosticsConfig(), image_qos_));
+        }
+        return subs;
+      }())),
+  segmentation_masks_subs_(
+    std::make_unique<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>>(
+      [this]() {
+        std::vector<std::shared_ptr<NitrosImageViewSubscriber>> subs;
+        subs.reserve(num_input_masks_);
+        if (num_input_masks_ <= 0) {
+          return subs;
+        }
+        for (uint i = 0; i < num_cameras_; ++i) {
+          subs.push_back(
+            std::make_shared<NitrosImageViewSubscriber>(
+              this,
+              "visual_slam/seg_mask_" + std::to_string(i),
+              nvidia::isaac_ros::nitros::nitros_image_mono8_t::supported_type_name,
+              std::bind(
+                &VisualSlamNode::CallbackImage, this, i + num_cameras_,
+                std::placeholders::_1),
               nvidia::isaac_ros::nitros::NitrosDiagnosticsConfig(), image_qos_));
         }
         return subs;
@@ -265,7 +287,7 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
       "visual_slam/localize_in_map", std::bind(
         &VisualSlamNode::CallbackLocalizeInMap, this,
         std::placeholders::_1, std::placeholders::_2),
-      rmw_qos_profile_services_default,
+      rclcpp::ServicesQoS(),
       localize_in_map_callback_group_)),
   // Initialize the impl
   impl_(std::make_unique<VisualSlamImpl>(*this))
@@ -277,7 +299,7 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
   RCLCPP_INFO(get_logger(), "cuVSLAM version: %s", cuvslam_version);
 
   // VisualSlamNode is desined for this cuvslam sdk version:
-  int32_t exp_cuvslam_major = 12, exp_cuvslam_minor = 6;
+  int32_t exp_cuvslam_major = 14, exp_cuvslam_minor = 0;
   if (cuvslam_major != exp_cuvslam_major || cuvslam_minor != exp_cuvslam_minor) {
     RCLCPP_FATAL(
       get_logger(), "VisualSlamNode is designed to work with cuVSLAM SDK v%d.%d",
@@ -294,6 +316,12 @@ VisualSlamNode::VisualSlamNode(rclcpp::NodeOptions options)
 
 VisualSlamNode::~VisualSlamNode()
 {
+  // Stop any running localization thread
+  localization_thread_running_ = false;
+  if (localization_thread_.joinable()) {
+    localization_thread_.join();
+  }
+
   if (!save_map_folder_path_.empty()) {
     if (impl_->IsInitialized()) {
       impl_->SaveMap(save_map_folder_path_);
@@ -427,12 +455,35 @@ void VisualSlamNode::CallbackLocalizeInMap(
     load_map_folder_path_ = req->map_folder_path;
   }
 
-  const auto maybe_pose = impl_->LocalizeInMap(
-    load_map_folder_path_,
-    req->pose_hint,
-    map_frame_);
-  if (!maybe_pose) {return;}
+  // Start async localization - it will complete during normal tracking operations
+  RCLCPP_INFO(this->get_logger(), "Starting async localization in map '%s'",
+          load_map_folder_path_.c_str());
 
+  // Join any existing localization thread before starting a new one
+  if (localization_thread_.joinable()) {
+    localization_thread_.join();
+  }
+
+  // Start the localization process in a managed thread
+  localization_thread_running_ = true;
+  localization_thread_ = std::thread([this, req]() {
+        // Store the future in the member variable to prevent it from being destroyed
+        {
+          std::lock_guard<std::mutex> lock(impl_->localization_mutex_);
+          impl_->localization_future_ = impl_->LocalizeInMapAsync(
+            load_map_folder_path_,
+            req->pose_hint,
+            map_frame_);
+        }
+
+        RCLCPP_INFO(this->get_logger(),
+              "Localization process initiated - will complete during normal tracking");
+
+        // Mark thread as finished
+        localization_thread_running_ = false;
+      });
+
+  // Return immediately - localization will happen during normal tracking
   res->success = true;
 }
 

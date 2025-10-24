@@ -22,6 +22,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <thread>
+#include <atomic>
 
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "message_filters/subscriber.h"
@@ -56,6 +58,10 @@ private:
   // This is the single source of truth, ie. if you set num_cameras=2 but pass 4
   // input_camera_optical_frames we will only use the first 2.
   const uint num_cameras_;
+
+  // Functional Parameters:
+  // Number of input masks used.
+  const uint num_input_masks_;
 
   // Multicamera mode: moderate (0), performance (1) or precision (2).
   // Multicamera odometry settings will be adjusted depending on a chosen strategy.
@@ -224,6 +230,7 @@ private:
   // Subscribers. Unique pointer is used for NITROS type to enable more flexibility when
   // deallocating.
   std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> image_subs_;
+  std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> segmentation_masks_subs_;
   const std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> camera_info_subs_;
   const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
   const rclcpp::Subscription<PoseWithCovarianceStampedType>::SharedPtr initial_pose_sub_;
@@ -296,6 +303,10 @@ private:
 
   struct VisualSlamImpl;
   std::unique_ptr<VisualSlamImpl> impl_;
+
+  // Thread management for localization
+  std::thread localization_thread_;
+  std::atomic<bool> localization_thread_running_{false};
 };
 
 }  // namespace visual_slam

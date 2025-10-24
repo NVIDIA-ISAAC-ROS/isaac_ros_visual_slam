@@ -3,7 +3,7 @@
 NVIDIA-accelerated, simultaneous localization and mapping (SLAM) using stereo
 visual inertial odometry (SVIO).
 
-<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/main/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/main/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/" width="800px"/></a></div>
+<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/" width="800px"/></a></div>
 
 ---
 
@@ -61,7 +61,7 @@ closure. VSLAM uses a statistical approach to loop closure that is more
 compute efficient to provide a real time solution, improving convergence
 in loop closure.
 
-<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/main/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/main/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/" width="880px"/></a></div>
+<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/" width="880px"/></a></div>
 
 There are multiple methods for estimating odometry as an input to
 navigation. None of these methods are perfect; each has limitations
@@ -99,15 +99,6 @@ In addition to results from standard benchmarks, we test loop closure
 for VSLAM on sequences of over 1000 meters, with coverage for indoor and
 outdoor scenes.
 
-## Performance
-
-| Sample Graph<br/><br/>                                                                                                                                                                                                           | Input Size<br/><br/>      | Nova Carter<br/><br/>                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Multicam Visual SLAM Live Graph](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/benchmarks/isaac_ros_perceptor_nova_benchmark/scripts/isaac_ros_visual_slam_graph.py)<br/><br/><br/>4 Hawk Cameras<br/><br/> | 1200p<br/><br/><br/><br/> | [30.1 fps](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_benchmark/blob/main/results/isaac_ros_4_hawk_vslam_graph-carter-v2.4-jp6.json)<br/><br/><br/><br/> |
-
-> [!Note]
-> This benchmark can only be run on a [Nova Orin](https://developer.nvidia.com/isaac/nova-orin) compatible system.
-
 ---
 
 ## Documentation
@@ -129,4 +120,4 @@ this repository.
 
 ## Latest
 
-Update 2024-12-10: Add support for multi-cam SLAM mode on stereo RGB cameras
+Update 2025-10-24: Support for ROS 2 Jazzy with cuVSLAM 14

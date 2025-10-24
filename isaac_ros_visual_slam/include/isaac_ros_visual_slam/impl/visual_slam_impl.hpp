@@ -20,6 +20,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -31,7 +32,7 @@
 #include "boost/thread/future.hpp"
 #include "cuvslam.h"  // NOLINT - include .h without directory
 #include "ground_constraint.h"  // NOLINT - include .h without directory
-#include "cv_bridge/cv_bridge.h"
+#include "cv_bridge/cv_bridge.hpp"
 #include "isaac_common/messaging/message_stream_synchronizer.hpp"
 #include "isaac_ros_visual_slam/impl/landmarks_vis_helper.hpp"
 #include "isaac_ros_visual_slam/impl/limited_vector.hpp"
@@ -78,6 +79,7 @@ struct VisualSlamNode::VisualSlamImpl
       CUVSLAM_Pose pose_in_db;
     };
     boost::promise<Response> response_promise;
+    CUVSLAM_Pose pose_storage;  // Storage for pose hint to prevent dangling pointer
   };
 
 
@@ -149,6 +151,9 @@ struct VisualSlamNode::VisualSlamImpl
     const std::string & map_folder_path,
     const PoseType & pose_hint,
     const std::string & frame_id);
+
+  // Check and handle the localization future status
+  void CheckLocalizationStatus();
 
   // Callback for cuvslam's API to localize in an existing map.
   static void LocalizeInExistDbResponse(
@@ -223,6 +228,10 @@ struct VisualSlamNode::VisualSlamImpl
 
   LocalizeInExistDbContext localize_in_exist_db_context;
   bool localized_in_exist_map_ = false;
+
+  // Store the localization future to prevent it from being destroyed before callback completes
+  std::optional<boost::future<std::optional<PoseType>>> localization_future_;
+  mutable std::mutex localization_mutex_;
 };
 
 }  // namespace visual_slam

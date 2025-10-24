@@ -24,7 +24,7 @@ def generate_launch_description():
     """Launch file which brings up visual slam node configured for RealSense."""
     realsense_camera_node = Node(
         name='camera',
-        namespace='camera',
+        namespace='',
         package='realsense2_camera',
         executable='realsense2_camera_node',
         parameters=[{
@@ -33,11 +33,12 @@ def generate_launch_description():
             'enable_color': False,
             'enable_depth': False,
             'depth_module.emitter_enabled': 0,
-            'depth_module.profile': '640x360x90',
+            'depth_module.infra_profile': '640x360x90',
+            'depth_module.profile': '640x360x90',  # For backwards compatibility
             'enable_gyro': True,
             'enable_accel': True,
             'gyro_fps': 200,
-            'accel_fps': 200,
+            'accel_fps': 200,  # set to 250 for rs d435i
             'unite_imu_method': 2
         }],
     )
@@ -55,7 +56,7 @@ def generate_launch_description():
             'accel_noise_density': 0.001862,
             'accel_random_walk': 0.003,
             'calibration_frequency': 200.0,
-            'image_jitter_threshold_ms': 22.00,
+            'image_jitter_threshold_ms': 12.00,
             'base_frame': 'camera_link',
             'imu_frame': 'camera_gyro_optical_frame',
             'enable_slam_visualization': True,

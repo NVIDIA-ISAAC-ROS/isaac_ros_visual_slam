@@ -16,13 +16,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <filesystem>
 
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 #include "isaac_ros_nitros/types/type_utility.hpp"
 #include "isaac_ros_visual_slam/impl/cuvslam_ros_conversion.hpp"
 #include "isaac_ros_visual_slam/impl/has_subscribers.hpp"
@@ -34,11 +35,25 @@
 namespace
 {
 
+class NvtxRangeScoped
+{
+public:
+  NvtxRangeScoped(const char * range_title, uint32_t range_color)
+  {
+    nvidia::isaac_ros::nitros::nvtxRangePushWrapper(range_title, range_color);
+  }
+  ~NvtxRangeScoped()
+  {
+    nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
+  }
+};
+
 void PrintConfiguration(const rclcpp::Logger & logger, const CUVSLAM_Configuration & cfg)
 {
   RCLCPP_INFO(logger, "Use use_gpu: %s", cfg.use_gpu ? "true" : "false");
-  RCLCPP_INFO(logger, "Enable IMU Fusion: %s", cfg.enable_imu_fusion ? "true" : "false");
-  if (cfg.enable_imu_fusion) {
+  RCLCPP_INFO(logger, "Enable IMU Fusion: %s",
+      cfg.odometry_mode == CUVSLAM_OdometryMode::Inertial ? "true" : "false");
+  if (cfg.odometry_mode == CUVSLAM_OdometryMode::Inertial) {
     RCLCPP_INFO(
       logger, "gyroscope_noise_density: %f",
       cfg.imu_calibration.gyroscope_noise_density);
@@ -97,7 +112,8 @@ namespace visual_slam
 
 VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & vslam_node)
 : node(vslam_node),
-  sync(node.num_cameras_, 1e6 * node.sync_matching_threshold_ms_, node.min_num_images_,
+  sync(node.num_cameras_ + node.num_input_masks_, 1e6 * node.sync_matching_threshold_ms_,
+    node.min_num_images_ + node.num_input_masks_,
     node.image_buffer_size_),
   sequencer(node.imu_buffer_size_, node.imu_jitter_threshold_ms_, node.image_buffer_size_,
     node.image_jitter_threshold_ms_),
@@ -393,9 +409,10 @@ CUVSLAM_Configuration VisualSlamNode::VisualSlamImpl::CreateConfiguration(
   configuration.enable_localization_n_mapping = node.enable_localization_n_mapping_ ? 1 : 0;
   configuration.enable_reading_slam_internals = node.enable_slam_visualization_ ? 1 : 0;
   configuration.slam_sync_mode = 0;
-  configuration.enable_imu_fusion = node.enable_imu_fusion_ ? 1 : 0;
+  configuration.odometry_mode =
+    node.enable_imu_fusion_ ? CUVSLAM_OdometryMode::Inertial : CUVSLAM_OdometryMode::Multicamera;
   configuration.debug_imu_mode = node.enable_debug_imu_mode_ ? 1 : 0;
-  configuration.max_frame_delta_ms = node.image_jitter_threshold_ms_;
+  configuration.max_frame_delta_s = node.image_jitter_threshold_ms_ / 1000.0f;
   configuration.planar_constraints = node.enable_ground_constraint_in_slam_ ? 1 : 0;
   configuration.slam_throttling_time_ms = node.slam_throttling_time_ms_;
 
@@ -604,40 +621,36 @@ void VisualSlamNode::VisualSlamImpl::PublishGravity(
 
 void VisualSlamNode::VisualSlamImpl::CallbackImu(const ImuType::ConstSharedPtr & msg)
 {
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
+  NvtxRangeScoped trace(
     "VisualSlamNode::VisualSlamImpl::CallbackImu", nvidia::isaac_ros::nitros::CLR_RED);
+
   if (IsInitialized()) {
     const rclcpp::Time timestamp(msg->header.stamp);
     sequencer.CallbackStream1(timestamp.nanoseconds(), msg);
   } else {initial_imu_message = msg;}
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
 }
 
 void VisualSlamNode::VisualSlamImpl::CallbackImage(int index, const ImageType & image_view)
 {
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
-    "VisualSlamNode::VisualSlamImpl::CallbackImage",
-    nvidia::isaac_ros::nitros::CLR_YELLOW);
+  NvtxRangeScoped trace(
+    "VisualSlamNode::VisualSlamImpl::CallbackImage", nvidia::isaac_ros::nitros::CLR_YELLOW);
 
   if (IsInitialized()) {
     const rclcpp::Time timestamp = NitrosTimeStamp::value(image_view.GetMessage());
     sync.AddMessage(index, timestamp.nanoseconds(), image_view);
   }
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
 }
 
 void VisualSlamNode::VisualSlamImpl::CallbackCameraInfo(
   int index, const CameraInfoType::ConstSharedPtr & msg)
 {
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
+  NvtxRangeScoped trace(
     "VisualSlamNode::VisualSlamImpl::CallbackCameraInfo", nvidia::isaac_ros::nitros::CLR_YELLOW);
 
   if (!IsInitialized()) {
     initial_camera_info_messages[index] = msg;
     if (IsReadyForInitialization()) {Initialize();}
   }
-
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
 }
 
 void VisualSlamNode::VisualSlamImpl::CallbackSynchronizedImages(
@@ -650,10 +663,13 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   const std::vector<ImuType::ConstSharedPtr> & imu_msgs,
   const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs)
 {
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
+  NvtxRangeScoped trace(
     "VisualSlamNode::VisualSlamImpl::UpdatePose", nvidia::isaac_ros::nitros::CLR_MAGENTA);
   Stopwatch stopwatch;
   StopwatchScope ssw(stopwatch);
+
+  // Check for completed localization
+  CheckLocalizationStatus();
 
   // Get the latest timestamp from images. We assume that the vector is never empty.
   const auto max_element = std::max_element(
@@ -693,31 +709,44 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
 
   // Convert images to cuvslam's format.
   std::vector<CUVSLAM_Image> cuvslam_images;
-  cuvslam_images.reserve(idx_and_image_msgs.size());
+  cuvslam_images.reserve(node.num_cameras_);
 
+  // First, extract the masks from the synchronized messages
+  std::unordered_map<int, const ImageType *> mask_msgs;
   for (const auto & [idx, image_msg] : idx_and_image_msgs) {
-    cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts));
+    if (idx >= static_cast<int>(node.num_cameras_)) {
+      mask_msgs[idx - node.num_cameras_] = &image_msg;
+    }
   }
 
-  StopwatchScope ssw_track(stopwatch_track);
-  CUVSLAM_PoseEstimate vo_pose_estimate;
-  nvidia::isaac_ros::nitros::nvtxRangePushWrapper(
-    "CUVSLAM_Track", nvidia::isaac_ros::nitros::CLR_MAGENTA);
+  for (const auto & [idx, image_msg] : idx_and_image_msgs) {
+    if (idx < static_cast<int>(node.num_cameras_)) {
+      auto mask_it = mask_msgs.find(idx);
+      if (mask_it != mask_msgs.end()) {
+        cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts, mask_it->second));
+      } else {
+        cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts));
+      }
+    }
+  }
 
-  const CUVSLAM_Status vo_status =
-    CUVSLAM_TrackGpuMem(
-    cuvslam_handle, cuvslam_images.data(), cuvslam_images.size(), nullptr,
-    &vo_pose_estimate);
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
-  ssw_track.Stop();
+  CUVSLAM_PoseEstimate vo_pose_estimate;
+  CUVSLAM_Status vo_status;
+  {
+    NvtxRangeScoped trace(
+      "CUVSLAM_Track", nvidia::isaac_ros::nitros::CLR_MAGENTA);
+    StopwatchScope ssw_track(stopwatch_track);
+
+    vo_status = CUVSLAM_TrackGpuMem(
+      cuvslam_handle, cuvslam_images.data(), cuvslam_images.size(), nullptr, nullptr,
+      &vo_pose_estimate);
+  }
 
   if (vo_status == CUVSLAM_TRACKING_LOST) {
     pose_cache.Reset();
     RCLCPP_WARN(node.get_logger(), "Visual tracking is lost");
-    nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
   } else if (vo_status != CUVSLAM_SUCCESS) {
     RCLCPP_WARN(node.get_logger(), "Unknown Tracker Error %d", vo_status);
-    nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
     return;
   }
 
@@ -729,7 +758,6 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
       !PoseToGround(ground_constraint_handle, vo_pose_estimate.pose))
     {
       RCLCPP_WARN(node.get_logger(), "Unknown ground constraint Error %d", vo_status);
-      nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
       return;
     }
 
@@ -749,7 +777,6 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
       const CUVSLAM_Status slam_pose_status = CUVSLAM_GetSlamPose(cuvslam_handle, &slam_pose);
       if (slam_pose_status != CUVSLAM_SUCCESS) {
         RCLCPP_WARN(node.get_logger(), "Get Slam Pose Error %d", slam_pose_status);
-        nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
         return;
       }
       cv_map_pose_cv_base_link = FromcuVSLAMPose(slam_pose);
@@ -963,7 +990,6 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   }
 
   last_track_ts = latest_ts;
-  nvidia::isaac_ros::nitros::nvtxRangePopWrapper();
 }
 
 
@@ -998,12 +1024,7 @@ CUVSLAM_Status VisualSlamNode::VisualSlamImpl::SaveMap(const std::string & map_f
     return call_result;
   }
 
-  // We manually call CUVSLAM_Track to "tick" the async actions inside of cuvslam.
-  // Without this the map saving may not finish.
-  CUVSLAM_Track(
-    cuvslam_handle, /*images=*/ nullptr, /*images_size=*/ 0,
-    /*predicted_pose=*/ nullptr, /*pose_estimate=*/ nullptr);
-
+  // The save operation will complete during normal tracking operations
   const SaveToSlamDbContext::Response response = response_future.get();
   if (response.status != CUVSLAM_SUCCESS) {
     RCLCPP_ERROR(node.get_logger(), "Failed to save map. Error %d", response.status);
@@ -1021,14 +1042,14 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
   const CUVSLAM_Pose & pose_hint)
 {
   localize_in_exist_db_context = LocalizeInExistDbContext();
-  LocalizeInExistDbContext & context = localize_in_exist_db_context;
-  auto response_future = context.response_promise.get_future();
+  auto response_future = localize_in_exist_db_context.response_promise.get_future();
 
   if (!node.enable_localization_n_mapping_) {
     RCLCPP_ERROR(
       node.get_logger(),
       "Cannot localize in map because `enable_localization_n_mapping` is set to false.");
-    LocalizeInExistDbResponse(&context, CUVSLAM_SLAM_IS_NOT_INITIALIZED, nullptr);
+    LocalizeInExistDbResponse(&localize_in_exist_db_context, CUVSLAM_SLAM_IS_NOT_INITIALIZED,
+            nullptr);
     return response_future;
   }
 
@@ -1036,19 +1057,47 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
     RCLCPP_ERROR(
       node.get_logger(),
       "Map folder '%s' does not exist.", map_folder_path.c_str());
-    LocalizeInExistDbResponse(&context, CUVSLAM_GENERIC_ERROR, nullptr);
+    LocalizeInExistDbResponse(&localize_in_exist_db_context, CUVSLAM_GENERIC_ERROR, nullptr);
     return response_future;
   }
 
+  // Check if the map folder contains the expected database files
+  bool has_lmdb_files = false;
+  for (const auto & entry : std::filesystem::directory_iterator(map_folder_path)) {
+    if (entry.is_regular_file() && entry.path().extension() == ".mdb") {
+      has_lmdb_files = true;
+      break;
+    }
+  }
+
+  if (!has_lmdb_files) {
+    RCLCPP_ERROR(
+      node.get_logger(),
+      "Map folder '%s' does not contain .mdb database files.", map_folder_path.c_str());
+    LocalizeInExistDbResponse(&localize_in_exist_db_context, CUVSLAM_GENERIC_ERROR, nullptr);
+    return response_future;
+  }
+
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Map folder '%s' exists and contains database files. Starting async localization...",
+    map_folder_path.c_str());
+
+  // For async localization, we don't need to provide images immediately
+  // The localization will use images from normal tracking operations
+  std::vector<CUVSLAM_Image> empty_images;
+
+  // Store the pose hint in the context to prevent dangling pointer
+  localize_in_exist_db_context.pose_storage = pose_hint;
 
   const CUVSLAM_Status call_result = CUVSLAM_LocalizeInExistDb(
     cuvslam_handle,
     map_folder_path.c_str(),
-    &pose_hint,
-    /*images=*/ nullptr,
-    /*images_size=*/ 0,
+    &localize_in_exist_db_context.pose_storage,  // Use stored pose instead of stack variable
+    nullptr,  // No images needed for async mode
+    0,        // No images
     &VisualSlamNode::VisualSlamImpl::LocalizeInExistDbResponse,
-    &context);
+    &localize_in_exist_db_context);
 
   if (call_result != CUVSLAM_SUCCESS) {
     RCLCPP_ERROR(node.get_logger(), "CUVSLAM_LocalizeInExistDb Error %d", call_result);
@@ -1056,8 +1105,14 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
     // rely on the callback to set the value of the response_promise.
   }
 
+  // The async localization callback will be triggered during normal tracking operations
+  // when CUVSLAM_Track is called with real images
+  RCLCPP_INFO(node.get_logger(),
+          "Async localization started, waiting for callback during normal tracking");
+
   return response_future;
 }
+
 
 boost::future<std::optional<PoseType>> VisualSlamNode::VisualSlamImpl::LocalizeInMapAsync(
   const std::string & map_folder_path,
@@ -1116,6 +1171,28 @@ std::optional<PoseType> VisualSlamNode::VisualSlamImpl::LocalizeInMap(
   const std::string & frame_id)
 {
   return LocalizeInMapAsync(map_folder_path, pose_hint, frame_id).get();
+}
+
+void VisualSlamNode::VisualSlamImpl::CheckLocalizationStatus()
+{
+  std::lock_guard<std::mutex> lock(localization_mutex_);
+  if (localization_future_.has_value()) {
+    // Check if the future is ready using standard-compliant boost::future API
+    if (localization_future_->wait_for(boost::chrono::seconds(0)) == boost::future_status::ready) {
+      try {
+        const auto maybe_pose = localization_future_->get();
+        if (maybe_pose) {
+          RCLCPP_INFO(node.get_logger(), "Localization completed successfully");
+        } else {
+          RCLCPP_ERROR(node.get_logger(), "Localization failed");
+        }
+      } catch (const std::exception & e) {
+        RCLCPP_ERROR(node.get_logger(), "Localization exception: %s", e.what());
+      }
+      // Clear the future
+      localization_future_.reset();
+    }
+  }
 }
 
 void VisualSlamNode::VisualSlamImpl::SaveToSlamDbResponse(
