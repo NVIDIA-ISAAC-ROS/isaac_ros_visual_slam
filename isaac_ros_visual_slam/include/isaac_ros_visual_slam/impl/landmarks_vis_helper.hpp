@@ -45,7 +45,7 @@ public:
   };
 
   LandmarksVisHelper(
-    CUVSLAM_DataLayer layer,
+    cuvslam::Slam::DataLayer layer,
     uint32_t max_landmarks_count = 1024,
     ColorMode color_mode = CM_RGB_MODE, uint32_t period_ms = 500);
 
@@ -53,9 +53,10 @@ public:
 
   void Init(
     const rclcpp::Publisher<PointCloud2Type>::SharedPtr publisher,
-    CUVSLAM_TrackerHandle cuvslam_handle,
+    std::shared_ptr<cuvslam::Slam> & cuvslam_slam,
     const tf2::Transform & canonical_pose_cuvslam,
-    const std::string & frame_id
+    const std::string & frame_id,
+    const rclcpp::Logger & logger
   );
 
   void Reset() override;
@@ -63,10 +64,10 @@ public:
   void Run();
 
 protected:
-  CUVSLAM_DataLayer layer_ = LL_OBSERVATIONS;
+  cuvslam::Slam::DataLayer layer_;
   uint32_t max_landmarks_count_ = 1024;
 
-  uint64_t last_timestamp_ns_ = 0;
+  int64_t last_timestamp_ns_ = 0;
 
   ColorMode color_mode_ = CM_RGB_MODE;
 

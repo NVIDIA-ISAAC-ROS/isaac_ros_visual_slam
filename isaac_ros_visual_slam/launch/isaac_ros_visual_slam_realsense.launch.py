@@ -33,8 +33,8 @@ def generate_launch_description():
             'enable_color': False,
             'enable_depth': False,
             'depth_module.emitter_enabled': 0,
-            'depth_module.infra_profile': '640x360x90',
-            'depth_module.profile': '640x360x90',  # For backwards compatibility
+            'depth_module.infra_profile': '640,360,60',
+            'depth_module.profile': '640,360,60',  # For backwards compatibility
             'enable_gyro': True,
             'enable_accel': True,
             'gyro_fps': 200,
@@ -50,13 +50,13 @@ def generate_launch_description():
         parameters=[{
             'enable_image_denoising': False,
             'rectified_images': True,
-            'enable_imu_fusion': True,
+            'tracking_mode': 1,  # VIO mode (IMU fusion)
             'gyro_noise_density': 0.000244,
             'gyro_random_walk': 0.000019393,
             'accel_noise_density': 0.001862,
             'accel_random_walk': 0.003,
             'calibration_frequency': 200.0,
-            'image_jitter_threshold_ms': 12.00,
+            'image_jitter_threshold_ms': 19.00,
             'base_frame': 'camera_link',
             'imu_frame': 'camera_gyro_optical_frame',
             'enable_slam_visualization': True,

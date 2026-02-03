@@ -36,7 +36,7 @@ struct PoseGraphVisHelper : public VisHelper
 {
 public:
   PoseGraphVisHelper(
-    CUVSLAM_DataLayer layer,
+    cuvslam::Slam::DataLayer layer,
     uint32_t max_items_count = 1024,
     uint32_t period_ms = 500
   );
@@ -46,20 +46,21 @@ public:
     const rclcpp::Publisher<PoseArrayType>::SharedPtr publisher_nodes,
     const rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges,
     const rclcpp::Publisher<MarkerType>::SharedPtr publisher_edges2,
-    CUVSLAM_TrackerHandle cuvslam_handle,
+    std::shared_ptr<cuvslam::Slam> & cuvslam_slam,
     const tf2::Transform & canonical_pose_cuvslam,
-    const std::string & frame_id);
+    const std::string & frame_id,
+    const rclcpp::Logger & logger);
 
   void Reset() override;
 
   void Run();
 
 protected:
-  CUVSLAM_DataLayer layer_ = LL_POSE_GRAPH;
+  cuvslam::Slam::DataLayer layer_ = cuvslam::Slam::DataLayer::PoseGraph;
   uint32_t max_items_count_ = 1024;
   uint32_t period_ms_ = 500;
 
-  uint64_t last_timestamp_ns_ = 0;
+  int64_t last_timestamp_ns_ = 0;
 
   using nodes_msg_t = std::unique_ptr<PoseArrayType>;
 

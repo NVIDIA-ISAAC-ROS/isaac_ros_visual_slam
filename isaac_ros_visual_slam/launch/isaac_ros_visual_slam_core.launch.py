@@ -38,7 +38,7 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
         camera_optical_frames = LaunchConfiguration('camera_optical_frames')
         base_frame = LaunchConfiguration('base_frame')
         num_cameras = LaunchConfiguration('num_cameras')
-        enable_imu_fusion = LaunchConfiguration('enable_imu_fusion')
+        tracking_mode = LaunchConfiguration('tracking_mode')
         imu_frame = LaunchConfiguration('imu_frame')
         gyro_noise_density = LaunchConfiguration('gyro_noise_density')
         gyro_random_walk = LaunchConfiguration('gyro_random_walk')
@@ -87,7 +87,7 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
                     'camera_optical_frames': camera_optical_frames,
                     'base_frame': base_frame,
                     'num_cameras': num_cameras,
-                    'enable_imu_fusion': enable_imu_fusion,
+                    'tracking_mode': tracking_mode,
                     'imu_frame': imu_frame,
                     'gyro_noise_density': gyro_noise_density,
                     'gyro_random_walk': gyro_random_walk,
@@ -149,9 +149,10 @@ class IsaacROSVisualSlamLaunchFragment(IsaacROSLaunchFragment):
                 'num_cameras',
                 default_value='2',
             ),
-            'enable_imu_fusion': DeclareLaunchArgument(
-                'enable_imu_fusion',
-                default_value='False',
+            'tracking_mode': DeclareLaunchArgument(
+                'tracking_mode',
+                default_value='0',
+                description='Tracking mode: 0=multicamera (default), 1=VIO (IMU fusion), 2=RGBD',
             ),
             'imu_frame': DeclareLaunchArgument(
                 'imu_frame',

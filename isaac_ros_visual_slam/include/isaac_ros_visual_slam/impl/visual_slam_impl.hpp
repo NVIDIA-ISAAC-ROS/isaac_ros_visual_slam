@@ -28,10 +28,11 @@
 
 #define BOOST_THREAD_PROVIDES_FUTURE
 #define BOOST_THREAD_PROVIDES_FUTURE_CONTINUATION
+#include "boost/outcome/result.hpp"
 #include "boost/thread.hpp"
 #include "boost/thread/future.hpp"
-#include "cuvslam.h"  // NOLINT - include .h without directory
-#include "ground_constraint.h"  // NOLINT - include .h without directory
+#include "cuvslam/cuvslam2.h"
+#include "cuvslam/ground_constraint2.h"
 #include "cv_bridge/cv_bridge.hpp"
 #include "isaac_common/messaging/message_stream_synchronizer.hpp"
 #include "isaac_ros_visual_slam/impl/landmarks_vis_helper.hpp"
@@ -60,26 +61,11 @@ constexpr int32_t kMaxNumCameraParameters = 12;
 
 struct VisualSlamNode::VisualSlamImpl
 {
-  // Asynchronous response for CUVSLAM_SaveToSlamDb()
-  struct SaveToSlamDbContext
-  {
-    struct Response
-    {
-      CUVSLAM_Status status;
-    };
-    boost::promise<Response> response_promise;
-  };
-
   // Asynchronous response for CUVSLAM_LocalizeInExistDb()
   struct LocalizeInExistDbContext
   {
-    struct Response
-    {
-      CUVSLAM_Status status;
-      CUVSLAM_Pose pose_in_db;
-    };
+    using Response = boost::outcome_v2::result<cuvslam::Pose, std::string>;
     boost::promise<Response> response_promise;
-    CUVSLAM_Pose pose_storage;  // Storage for pose hint to prevent dangling pointer
   };
 
 
@@ -97,7 +83,10 @@ struct VisualSlamNode::VisualSlamImpl
   void Exit();
 
   // Create the configuration for the cuvslam tracker.
-  CUVSLAM_Configuration CreateConfiguration(const CUVSLAM_Pose & cv_base_link_pose_cv_imu);
+  cuvslam::Odometry::Config CreateOdometryConfiguration();
+
+  // Create the configuration for the cuvslam slam.
+  cuvslam::Slam::Config CreateSlamConfiguration();
 
   // Helper function to publish a transform to the tf tree.
   void PublishFrameTransform(
@@ -133,12 +122,12 @@ struct VisualSlamNode::VisualSlamImpl
     const std::vector<std::pair<int, ImageType>> & idx_and_image_msgs);
 
   // Save the current map to disk.
-  CUVSLAM_Status SaveMap(const std::string & map_folder_path);
+  bool SaveMap(const std::string & map_folder_path);
 
   // Core functionality to localize in a map. Expects and returns the pose in cuvslam conventions.
   boost::future<LocalizeInExistDbContext::Response> CuvslamInternalLocalizeInMapAsync(
     const std::string & map_folder_path,
-    const CUVSLAM_Pose & pose_hint);
+    const cuvslam::Pose & pose_hint);
 
   // Localize in an existing map asynchronously. Expects and returns the pose in ROS conventions.
   boost::future<std::optional<PoseType>> LocalizeInMapAsync(
@@ -155,13 +144,6 @@ struct VisualSlamNode::VisualSlamImpl
   // Check and handle the localization future status
   void CheckLocalizationStatus();
 
-  // Callback for cuvslam's API to localize in an existing map.
-  static void LocalizeInExistDbResponse(
-    void * context, CUVSLAM_Status status, const CUVSLAM_Pose * pose_in_db);
-
-  // Callback for cuvslam's API to store a map to disk.
-  static void SaveToSlamDbResponse(void * context, CUVSLAM_Status status);
-
   // Reference to the ros node.
   VisualSlamNode & node;
 
@@ -174,15 +156,14 @@ struct VisualSlamNode::VisualSlamImpl
       std::vector<std::pair<int, ImageType>>>;
   Sequencer sequencer;
 
-  // cuVSLAM handle to call cuVSLAM API.
-  CUVSLAM_TrackerHandle cuvslam_handle = nullptr;
-  CUVSLAM_GroundConstraintHandle ground_constraint_handle = nullptr;
+  // cuVSLAM API objects
+  std::unique_ptr<cuvslam::Odometry> cuvslam_odometry;
+  cuvslam::Odometry::State odometry_state;
+  std::shared_ptr<cuvslam::Slam> cuvslam_slam;  // Shared pointer for async visualization helpers
+  std::unique_ptr<cuvslam::GroundConstraint> ground_constraint;
 
-  // Define number of cameras for cuVSLAM. 2 for stereo camera.
-  std::vector<CUVSLAM_Camera> cuvslam_cameras;
-
-  // Define camera parameters for all cameras.
-  std::vector<std::array<float, kMaxNumCameraParameters>> intrinsics;
+  // Define cameras for cuVSLAM. 2 for stereo camera.
+  std::vector<cuvslam::Camera> cuvslam_cameras;
 
   // Helper classes for tf listening and publishing.
   std::unique_ptr<tf2_ros::Buffer> tf_buffer{nullptr};
@@ -194,7 +175,7 @@ struct VisualSlamNode::VisualSlamImpl
   limited_vector<PoseStampedType> slam_path;
 
   // Point cloud to visualize tracks
-  LandmarksVisHelper observations_vis_helper;
+  // LandmarksVisHelper observations_vis_helper;
   // Point cloud to visualize landmarks
   LandmarksVisHelper landmarks_vis_helper;
   // Loop closure landmarks

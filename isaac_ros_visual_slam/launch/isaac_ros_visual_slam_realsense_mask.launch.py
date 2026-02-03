@@ -119,7 +119,7 @@ def generate_launch_description():
             'num_input_masks': 1,
             'enable_image_denoising': False,
             'rectified_images': True,
-            'enable_imu_fusion': False,
+            'tracking_mode': 0,  # Multicamera mode (default)
             'image_jitter_threshold_ms': 35.00,
             'base_frame': 'camera_link',
             'imu_frame': 'camera_gyro_optical_frame',
