@@ -108,6 +108,7 @@ if(BUILD_TESTING)
 
   find_package(launch_testing_ament_cmake REQUIRED)
   add_launch_test(test/isaac_ros_visual_slam_pol_multi_cam_imu.py)
+  add_launch_test(test/isaac_ros_visual_slam_pol_rgbd_cam.py)
   add_launch_test(test/isaac_ros_visual_slam_pol_single_cam_imu.py)
   add_launch_test(test/isaac_ros_visual_slam_srv_get_all_poses.py)
   add_launch_test(test/isaac_ros_visual_slam_srv_load_map.py)

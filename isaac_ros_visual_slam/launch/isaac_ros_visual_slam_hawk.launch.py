@@ -101,7 +101,7 @@ def generate_launch_description():
             'img_mask_bottom': 30,
             'img_mask_left': 150,
             'img_mask_right': 30,
-            'enable_imu_fusion': True,
+            'tracking_mode': 1,  # VIO mode (IMU fusion)
             'gyro_noise_density': 0.000244,
             'gyro_random_walk': 0.000019393,
             'accel_noise_density': 0.001862,

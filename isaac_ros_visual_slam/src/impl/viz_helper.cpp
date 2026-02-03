@@ -27,20 +27,25 @@ namespace visual_slam
 {
 
 // VisHelper
-VisHelper::VisHelper() {}
+VisHelper::VisHelper()
+: logger_(rclcpp::get_logger("VisualSlam: VisHelper"))
+{}
+
 void VisHelper::Init(
-  CUVSLAM_TrackerHandle cuvslam_handle,
+  std::shared_ptr<cuvslam::Slam> & cuvslam_slam,
   const tf2::Transform & canonical_pose_cuvslam,
-  const std::string & frame_id)
+  const std::string & frame_id,
+  const rclcpp::Logger & logger)
 {
-  cuvslam_handle_ = cuvslam_handle;
+  cuvslam_slam_ = cuvslam_slam;
   canonical_pose_cuvslam_ = canonical_pose_cuvslam;
   frame_id_ = frame_id;
+  logger_ = logger;
 }
 
 void VisHelper::Exit()
 {
-  if (!cuvslam_handle_) {
+  if (!cuvslam_slam_) {
     return;
   }
   {
@@ -48,7 +53,7 @@ void VisHelper::Exit()
 
     Reset();
 
-    cuvslam_handle_ = 0;
+    cuvslam_slam_.reset();
     frame_id_ = "";
 
     cond_var_.notify_all();

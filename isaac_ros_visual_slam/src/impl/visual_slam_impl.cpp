@@ -48,53 +48,49 @@ public:
   }
 };
 
-void PrintConfiguration(const rclcpp::Logger & logger, const CUVSLAM_Configuration & cfg)
+void PrintConfiguration(const rclcpp::Logger & logger, const cuvslam::Odometry::Config & cfg)
 {
   RCLCPP_INFO(logger, "Use use_gpu: %s", cfg.use_gpu ? "true" : "false");
   RCLCPP_INFO(logger, "Enable IMU Fusion: %s",
-      cfg.odometry_mode == CUVSLAM_OdometryMode::Inertial ? "true" : "false");
-  if (cfg.odometry_mode == CUVSLAM_OdometryMode::Inertial) {
-    RCLCPP_INFO(
-      logger, "gyroscope_noise_density: %f",
-      cfg.imu_calibration.gyroscope_noise_density);
-    RCLCPP_INFO(
-      logger, "gyroscope_random_walk: %f",
-      cfg.imu_calibration.gyroscope_random_walk);
-    RCLCPP_INFO(
-      logger, "accelerometer_noise_density: %f",
-      cfg.imu_calibration.accelerometer_noise_density);
-    RCLCPP_INFO(
-      logger, "accelerometer_random_walk: %f",
-      cfg.imu_calibration.accelerometer_random_walk);
-    RCLCPP_INFO(
-      logger, "frequency: %f",
-      cfg.imu_calibration.frequency);
-  }
+      cfg.odometry_mode == cuvslam::Odometry::OdometryMode::Inertial ? "true" : "false");
 }
 
-bool InitGroundConstraint(CUVSLAM_GroundConstraintHandle * ground, const rclcpp::Logger & logger)
+void PrintImuCalibration(const rclcpp::Logger & logger, const cuvslam::ImuCalibration & imu)
 {
-  const CUVSLAM_Pose identity = nvidia::isaac_ros::visual_slam::TocuVSLAMPose(
+  RCLCPP_INFO(logger, "gyroscope_noise_density: %f", imu.gyroscope_noise_density);
+  RCLCPP_INFO(logger, "gyroscope_random_walk: %f", imu.gyroscope_random_walk);
+  RCLCPP_INFO(logger, "accelerometer_noise_density: %f", imu.accelerometer_noise_density);
+  RCLCPP_INFO(logger, "accelerometer_random_walk: %f", imu.accelerometer_random_walk);
+  RCLCPP_INFO(logger, "frequency: %f", imu.frequency);
+}
+
+std::unique_ptr<cuvslam::GroundConstraint> InitGroundConstraint(const rclcpp::Logger & logger)
+{
+  const cuvslam::Pose identity = nvidia::isaac_ros::visual_slam::TocuVSLAMPose(
     tf2::Transform::getIdentity());
-  const CUVSLAM_Pose world_pose_ground = identity;
-  const CUVSLAM_Pose initial_pose_on_ground = identity;
-  const CUVSLAM_Pose initial_pose_in_space = identity;
+  const cuvslam::Pose world_pose_ground = identity;
+  const cuvslam::Pose initial_pose_on_ground = identity;
+  const cuvslam::Pose initial_pose_in_space = identity;
 
-  const CUVSLAM_Status status = CUVSLAM_GroundConstraintCreate(
-    ground, &world_pose_ground, &initial_pose_on_ground, &initial_pose_in_space);
-  if (status != CUVSLAM_SUCCESS) {
-    RCLCPP_ERROR(logger, "Failed to initialize cuVSLAM ground constraint: %d", status);
-    return false;
+  try {
+    auto ground_constraint = std::make_unique<cuvslam::GroundConstraint>(
+      world_pose_ground, initial_pose_on_ground, initial_pose_in_space);
+    return ground_constraint;
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "Failed to initialize cuVSLAM ground constraint: %s", e.what());
+    return nullptr;
   }
-  return true;
 }
 
-bool PoseToGround(CUVSLAM_GroundConstraintHandle ground, CUVSLAM_Pose & pose)
+bool PoseToGround(
+  cuvslam::GroundConstraint & ground, cuvslam::Pose & pose,
+  const rclcpp::Logger & logger)
 {
-  if (CUVSLAM_GroundConstraintAddNextPose(ground, &pose) != CUVSLAM_SUCCESS) {
-    return false;
-  }
-  if (CUVSLAM_GroundConstraintGetPoseOnGround(ground, &pose) != CUVSLAM_SUCCESS) {
+  try {
+    ground.AddNextPose(pose);
+    pose = ground.GetPoseOnGround();
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "Failed to add next pose to cuVSLAM ground constraint: %s", e.what());
     return false;
   }
   return true;
@@ -112,8 +108,10 @@ namespace visual_slam
 
 VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & vslam_node)
 : node(vslam_node),
-  sync(node.num_cameras_ + node.num_input_masks_, 1e6 * node.sync_matching_threshold_ms_,
-    node.min_num_images_ + node.num_input_masks_,
+  sync(node.num_cameras_ + node.num_input_masks_ +
+    (node.tracking_mode_ == static_cast<int>(TrackingMode::RGBD) ? 1 : 0),
+    1e6 * node.sync_matching_threshold_ms_, node.min_num_images_ +
+    node.num_input_masks_ + (node.tracking_mode_ == static_cast<int>(TrackingMode::RGBD) ? 1 : 0),
     node.image_buffer_size_),
   sequencer(node.imu_buffer_size_, node.imu_jitter_threshold_ms_, node.image_buffer_size_,
     node.image_jitter_threshold_ms_),
@@ -123,21 +121,24 @@ VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & vslam_node)
   tf_static_publisher(std::make_unique<tf2_ros::StaticTransformBroadcaster>(&node)),
   vo_path(node.path_max_size_),
   slam_path(node.path_max_size_),
-  observations_vis_helper(LL_OBSERVATIONS, 2048, LandmarksVisHelper::CM_RGB_MODE, 16),
-  landmarks_vis_helper(LL_MAP, 1024 * 32, LandmarksVisHelper::CM_BW_MODE, 100),
-  lc_landmarks_vis_helper(LL_LOOP_CLOSURE, 2048, LandmarksVisHelper::CM_RED_MODE, 16),
-  pose_graph_helper(LL_POSE_GRAPH, 2048, 100),
+  // observations_vis_helper(cuvslam::Slam::DataLayer::Observations, 2048,
+  //   LandmarksVisHelper::CM_RGB_MODE, 16),
+  landmarks_vis_helper(cuvslam::Slam::DataLayer::Map, 1024 * 32, LandmarksVisHelper::CM_BW_MODE,
+    100),
+  lc_landmarks_vis_helper(cuvslam::Slam::DataLayer::LoopClosure, 2048,
+    LandmarksVisHelper::CM_RED_MODE, 16),
+  pose_graph_helper(cuvslam::Slam::DataLayer::PoseGraph, 2048, 100),
   localizer_helper(8 * 2048, 100),
-  localizer_landmarks_vis_helper(LL_LOCALIZER_MAP, 1024 * 32, LandmarksVisHelper::CM_GREEN_MODE,
-    16),
-  localizer_observations_vis_helper(LL_LOCALIZER_OBSERVATIONS, 1024 * 32,
+  localizer_landmarks_vis_helper(cuvslam::Slam::DataLayer::LocalizerMap, 1024 * 32,
+    LandmarksVisHelper::CM_GREEN_MODE, 16),
+  localizer_observations_vis_helper(cuvslam::Slam::DataLayer::LocalizerObservations, 1024 * 32,
     LandmarksVisHelper::CM_WEIGHT_BW_MODE, 16),
-  localizer_lc_landmarks_vis_helper(LL_LOCALIZER_LOOP_CLOSURE, 2048,
+  localizer_lc_landmarks_vis_helper(cuvslam::Slam::DataLayer::LocalizerLoopClosure, 2048,
     LandmarksVisHelper::CM_RED_MODE, 16),
   track_execution_times(100),
   last_track_ts(-1)
 {
-  CUVSLAM_SetVerbosity(node.verbosity_);
+  cuvslam::SetVerbosity(node.verbosity_);
 
   sequencer.RegisterCallback(
     std::bind(
@@ -158,13 +159,13 @@ VisualSlamNode::VisualSlamImpl::~VisualSlamImpl()
 // Flag to check the status of initialization.
 bool VisualSlamNode::VisualSlamImpl::IsInitialized() const
 {
-  return cuvslam_handle != nullptr;
+  return cuvslam_odometry != nullptr;
 }
 
 bool VisualSlamNode::VisualSlamImpl::IsReadyForInitialization() const
 {
   // We need at least one message of every sensor to initialize.
-  if (node.enable_imu_fusion_ && !initial_imu_message) {
+  if (node.tracking_mode_ == static_cast<int>(TrackingMode::VIO) && !initial_imu_message) {
     return false;
   }
 
@@ -183,10 +184,11 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
 
   RCLCPP_INFO(node.get_logger(), "Initializing cuVSLAM.");
 
-  if (node.enable_ground_constraint_in_odometry_ &&
-    !InitGroundConstraint(&ground_constraint_handle, node.get_logger()))
-  {
-    return;
+  if (node.enable_ground_constraint_in_odometry_) {
+    ground_constraint = InitGroundConstraint(node.get_logger());
+    if (!ground_constraint) {
+      return;
+    }
   }
 
   // Set the base frame.
@@ -209,13 +211,12 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
   }
 
   // Setup camera extrinsics (and intrinsics).
-  cuvslam_cameras.resize(node.num_cameras_);
-  intrinsics.resize(node.num_cameras_);
+  cuvslam::Rig cam_rig;
+  cam_rig.cameras.resize(node.num_cameras_);
 
   for (const auto & [idx, camera_info_msg] : initial_camera_info_messages) {
     const rclcpp::Time stamp(camera_info_msg.value()->header.stamp);
-    cuvslam_cameras[idx].parameters = intrinsics[idx].data();
-    FillIntrinsics(camera_info_msg.value(), cuvslam_cameras[idx]);
+    FillIntrinsics(camera_info_msg.value(), cam_rig.cameras[idx]);
     const tf2::Transform base_link_pose_camera_optical = GetLatestTransform(
       base_frame,
       camera_optical_frames[idx]);
@@ -229,22 +230,19 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
         rectification_matrix.inverse());
       const tf2::Transform base_link_pose_camera_rectified_optical = base_link_pose_camera_optical *
         camera_optical_pose_camera_optical_rectified;
-      FillExtrinsics(base_link_pose_camera_rectified_optical, cuvslam_cameras[idx]);
+      FillExtrinsics(base_link_pose_camera_rectified_optical, cam_rig.cameras[idx]);
     } else {
-      FillExtrinsics(base_link_pose_camera_optical, cuvslam_cameras[idx]);
+      FillExtrinsics(base_link_pose_camera_optical, cam_rig.cameras[idx]);
     }
   }
 
 
-  CUVSLAM_CameraRig cam_rig;
-  cam_rig.cameras = cuvslam_cameras.data();
-  cam_rig.num_cameras = cuvslam_cameras.size();
   uint32_t border_mask_top = node.border_mask_top_;
   uint32_t border_mask_bottom = node.border_mask_bottom_;
   uint32_t border_mask_left = node.border_mask_left_;
   uint32_t border_mask_right = node.border_mask_right_;
 
-  for (int i = 0; i < cam_rig.num_cameras; i++) {
+  for (size_t i = 0; i < cam_rig.cameras.size(); i++) {
     auto roi = initial_camera_info_messages.at(i).value()->roi;
     uint32_t img_width = initial_camera_info_messages.at(i).value()->width;
     uint32_t img_height = initial_camera_info_messages.at(i).value()->height;
@@ -256,7 +254,7 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
       roi.height = img_height;
     }
 
-    auto & cam = cuvslam_cameras[i];
+    auto & cam = cam_rig.cameras[i];
 
     if (!node.rectified_images_ && (border_mask_top != 0 || border_mask_bottom != 0 ||
       border_mask_left != 0 || border_mask_right != 0))
@@ -281,7 +279,7 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
   // Create the IMU configuration. If the IMU is disabled we just use the identity transform.
   tf2::Transform cv_base_link_pose_cv_imu;
   cv_base_link_pose_cv_imu.setIdentity();
-  if (node.enable_imu_fusion_) {
+  if (node.tracking_mode_ == static_cast<int>(TrackingMode::VIO)) {
     const std::string imu_frame =
       !node.imu_frame_.empty() ? node.imu_frame_ : initial_imu_message.value()->header.frame_id;
 
@@ -289,22 +287,45 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
     const rclcpp::Time stamp(initial_imu_message.value()->header.stamp);
     cv_base_link_pose_cv_imu =
       ChangeBasis(cuvslam_pose_canonical, GetLatestTransform(base_frame, imu_frame));
+
+    cuvslam::ImuCalibration imu_calibration;
+    imu_calibration.rig_from_imu = TocuVSLAMPose(cv_base_link_pose_cv_imu);
+    imu_calibration.gyroscope_noise_density = node.imu_params_.gyroscope_noise_density;
+    imu_calibration.gyroscope_random_walk = node.imu_params_.gyroscope_random_walk;
+    imu_calibration.accelerometer_noise_density = node.imu_params_.accelerometer_noise_density;
+    imu_calibration.accelerometer_random_walk = node.imu_params_.accelerometer_random_walk;
+    imu_calibration.frequency = node.imu_params_.calibration_frequency;
+    cam_rig.imus.push_back(imu_calibration);
+    PrintImuCalibration(node.get_logger(), imu_calibration);
   }
 
-  // Create cuvslam tracker.
-  const CUVSLAM_Configuration configuration =
-    CreateConfiguration(TocuVSLAMPose(cv_base_link_pose_cv_imu));
+  // Create cuvslam odometry tracker.
+  const cuvslam::Odometry::Config configuration = CreateOdometryConfiguration();
   PrintConfiguration(node.get_logger(), configuration);
 
-  Stopwatch stopwatch_tracker;
-  StopwatchScope ssw_tracker(stopwatch_tracker);
-  CUVSLAM_TrackerHandle tracker;
-  const CUVSLAM_Status status = CUVSLAM_CreateTracker(&tracker, &cam_rig, &configuration);
-
-  RCLCPP_INFO(node.get_logger(), "Time taken by CUVSLAM_CreateTracker(): %f", ssw_tracker.Stop());
-  if (status != CUVSLAM_SUCCESS) {
-    RCLCPP_ERROR(node.get_logger(), "Failed to initialize CUVSLAM tracker: %d", status);
+  try {
+    Stopwatch stopwatch_tracker;
+    StopwatchScope ssw_tracker(stopwatch_tracker);
+    cuvslam_odometry = std::make_unique<cuvslam::Odometry>(cam_rig, configuration);
+    RCLCPP_INFO(node.get_logger(), "Time taken by cuvslam::Odometry::Odometry(): %f",
+            ssw_tracker.Stop());
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(node.get_logger(), "Failed to initialize cuvslam::Odometry: %s", e.what());
     return;
+  }
+
+  if (node.enable_localization_n_mapping_) {
+    try {
+      Stopwatch stopwatch_slam;
+      StopwatchScope ssw_slam(stopwatch_slam);
+      cuvslam_slam = std::make_shared<cuvslam::Slam>(cam_rig, cuvslam_odometry->GetPrimaryCameras(),
+              CreateSlamConfiguration());
+      RCLCPP_INFO(node.get_logger(), "Time taken by cuvslam::Slam::Slam(): %f",
+              ssw_slam.Stop());
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(node.get_logger(), "Failed to initialize cuvslam::Slam: %s", e.what());
+      return;
+    }
   }
 
   pose_cache.Reset();
@@ -312,25 +333,32 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
 
   // Initialize visualization helpers.
   if (node.enable_slam_visualization_) {
-    observations_vis_helper.Init(
-      node.vis_observations_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+    // observations_vis_helper.Init(
+    //   node.vis_observations_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+    //   node.get_logger());
     landmarks_vis_helper.Init(
-      node.vis_landmarks_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_landmarks_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
     lc_landmarks_vis_helper.Init(
-      node.vis_loop_closure_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_loop_closure_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
     pose_graph_helper.Init(
       node.vis_posegraph_nodes_pub_, node.vis_posegraph_edges_pub_,
-      node.vis_posegraph_edges2_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_posegraph_edges2_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
     localizer_helper.Init(
-      node.vis_localizer_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_localizer_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
     localizer_landmarks_vis_helper.Init(
-      node.vis_localizer_landmarks_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_localizer_landmarks_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
     localizer_observations_vis_helper.Init(
-      node.vis_localizer_observations_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_localizer_observations_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
     localizer_lc_landmarks_vis_helper.Init(
-      node.vis_localizer_loop_closure_pub_, tracker, canonical_pose_cuvslam, node.map_frame_);
+      node.vis_localizer_loop_closure_pub_, cuvslam_slam, canonical_pose_cuvslam, node.map_frame_,
+      node.get_logger());
   }
-  cuvslam_handle = tracker;
   RCLCPP_INFO(node.get_logger(), "cuVSLAM tracker was successfully initialized.");
 
   if (node.localize_on_startup_) {
@@ -353,7 +381,7 @@ void VisualSlamNode::VisualSlamImpl::Initialize()
 
 void VisualSlamNode::VisualSlamImpl::Exit()
 {
-  observations_vis_helper.Exit();
+  // observations_vis_helper.Exit();
   landmarks_vis_helper.Exit();
   lc_landmarks_vis_helper.Exit();
   pose_graph_helper.Exit();
@@ -362,19 +390,20 @@ void VisualSlamNode::VisualSlamImpl::Exit()
   localizer_observations_vis_helper.Exit();
   localizer_lc_landmarks_vis_helper.Exit();
 
-  if (cuvslam_handle != nullptr) {
-    CUVSLAM_DestroyTracker(cuvslam_handle);
-    cuvslam_handle = nullptr;
-    RCLCPP_INFO(node.get_logger(), "cuVSLAM tracker was destroyed");
+  if (cuvslam_odometry != nullptr) {
+    cuvslam_odometry.reset();
+    RCLCPP_INFO(node.get_logger(), "cuVSLAM odometry was destroyed");
   }
 
-  if (ground_constraint_handle != nullptr) {
-    CUVSLAM_GroundConstraintDestroy(ground_constraint_handle);
-    ground_constraint_handle = nullptr;
+  if (cuvslam_slam != nullptr) {
+    cuvslam_slam.reset();
+    RCLCPP_INFO(node.get_logger(), "cuVSLAM slam was destroyed");
+  }
+
+  if (ground_constraint != nullptr) {
+    ground_constraint.reset();
     RCLCPP_INFO(node.get_logger(), "cuVSLAM ground constraint was destroyed");
   }
-
-  intrinsics.clear();
 
   pose_cache.Reset();
   velocity_cache.Reset();
@@ -384,57 +413,59 @@ void VisualSlamNode::VisualSlamImpl::Exit()
 
   // Try to set the promise if localization has not returned yet. We don't know if the response is
   // outstanding so we just try it and catch the exception.
-  LocalizeInExistDbContext::Response response;
-  response.status = CUVSLAM_CAN_NOT_LOCALIZE;
+  LocalizeInExistDbContext::Response response{boost::outcome_v2::failure<std::string>(
+            "Cannot localize in map because Exit() was called.")};
   try {
     localize_in_exist_db_context.response_promise.set_value(response);
   } catch (const std::exception & e) {
   }
 }
 
-CUVSLAM_Configuration VisualSlamNode::VisualSlamImpl::CreateConfiguration(
-  const CUVSLAM_Pose & cv_base_link_pose_cv_imu)
+cuvslam::Odometry::Config VisualSlamNode::VisualSlamImpl::CreateOdometryConfiguration()
 {
-  CUVSLAM_Configuration configuration;
-  CUVSLAM_InitDefaultConfiguration(&configuration);
-  configuration.multicam_mode = node.multicam_mode_;
-  configuration.use_motion_model = 1;
-  configuration.use_denoising = node.enable_image_denoising_ ? 1 : 0;
-  configuration.horizontal_stereo_camera = node.rectified_images_ ? 1 : 0;
-  configuration.enable_observations_export = node.enable_observations_view_ ? 1 : 0;
+  cuvslam::Odometry::Config configuration = cuvslam::Odometry::GetDefaultConfig();
+  configuration.multicam_mode =
+    (node.multicam_mode_ == 0) ? cuvslam::Odometry::MulticameraMode::Moderate :
+    (node.multicam_mode_ == 1) ? cuvslam::Odometry::MulticameraMode::Performance :
+    cuvslam::Odometry::MulticameraMode::Precision;
+  configuration.use_motion_model = true;
+  configuration.use_denoising = node.enable_image_denoising_;
+  configuration.rectified_stereo_camera = node.rectified_images_;
+  configuration.enable_observations_export = node.enable_observations_view_ ||
+    node.enable_localization_n_mapping_;
   if (node.enable_debug_mode_) {
     configuration.debug_dump_directory = node.debug_dump_path_.c_str();
   }
-  configuration.enable_landmarks_export = node.enable_landmarks_view_ ? 1 : 0;
-  configuration.enable_localization_n_mapping = node.enable_localization_n_mapping_ ? 1 : 0;
-  configuration.enable_reading_slam_internals = node.enable_slam_visualization_ ? 1 : 0;
-  configuration.slam_sync_mode = 0;
-  configuration.odometry_mode =
-    node.enable_imu_fusion_ ? CUVSLAM_OdometryMode::Inertial : CUVSLAM_OdometryMode::Multicamera;
-  configuration.debug_imu_mode = node.enable_debug_imu_mode_ ? 1 : 0;
+  configuration.enable_landmarks_export = node.enable_landmarks_view_ ||
+    node.enable_localization_n_mapping_;
+  if (node.tracking_mode_ == static_cast<int>(TrackingMode::RGBD)) {
+    // RGBD mode
+    configuration.odometry_mode = cuvslam::Odometry::OdometryMode::RGBD;
+    // Configure RGBD settings
+    configuration.rgbd_settings.depth_scale_factor = node.depth_scale_factor_;
+    configuration.rgbd_settings.depth_camera_id = node.depth_camera_id_;
+    configuration.rgbd_settings.enable_depth_stereo_tracking = node.depth_enable_stereo_tracking_;
+  } else if (node.tracking_mode_ == static_cast<int>(TrackingMode::VIO)) {
+    // VIO mode (IMU fusion)
+    configuration.odometry_mode = cuvslam::Odometry::OdometryMode::Inertial;
+  } else {
+    // Default multicamera mode
+    configuration.odometry_mode = cuvslam::Odometry::OdometryMode::Multicamera;
+  }
+
+  configuration.debug_imu_mode = node.enable_debug_imu_mode_;
   configuration.max_frame_delta_s = node.image_jitter_threshold_ms_ / 1000.0f;
-  configuration.planar_constraints = node.enable_ground_constraint_in_slam_ ? 1 : 0;
-  configuration.slam_throttling_time_ms = node.slam_throttling_time_ms_;
 
-  CUVSLAM_ImuCalibration imu_calibration;
-  imu_calibration.rig_from_imu = cv_base_link_pose_cv_imu;
-  imu_calibration.gyroscope_noise_density = node.imu_params_.gyroscope_noise_density;
-  imu_calibration.gyroscope_random_walk = node.imu_params_.gyroscope_random_walk;
-  imu_calibration.accelerometer_noise_density = node.imu_params_.accelerometer_noise_density;
-  imu_calibration.accelerometer_random_walk = node.imu_params_.accelerometer_random_walk;
-  imu_calibration.frequency = node.imu_params_.calibration_frequency;
-  configuration.imu_calibration = imu_calibration;
+  return configuration;
+}
 
-  CUVSLAM_LocalizationSettings localization_settings;
-  localization_settings.horizontal_search_radius = node.localizer_horizontal_radius_;
-  localization_settings.vertical_search_radius = node.localizer_vertical_radius_;
-  localization_settings.horizontal_step = node.localizer_horizontal_step_;
-  localization_settings.vertical_step = node.localizer_vertical_step_;
-  localization_settings.angular_step_rads = node.localizer_angular_step_;
-  configuration.localization_settings = localization_settings;
-
-  configuration.slam_max_map_size = node.slam_max_map_size_;
-
+cuvslam::Slam::Config VisualSlamNode::VisualSlamImpl::CreateSlamConfiguration()
+{
+  cuvslam::Slam::Config configuration = cuvslam::Slam::GetDefaultConfig();
+  configuration.enable_reading_internals = node.enable_slam_visualization_;
+  configuration.planar_constraints = node.enable_ground_constraint_in_slam_;
+  configuration.throttling_time_ms = node.slam_throttling_time_ms_;
+  configuration.max_map_size = node.slam_max_map_size_;
   return configuration;
 }
 
@@ -570,16 +601,19 @@ void VisualSlamNode::VisualSlamImpl::PublishGravity(
   rclcpp::Time stamp, const std::string & frame_id,
   const rclcpp::Publisher<MarkerType>::SharedPtr publisher)
 {
-  CUVSLAM_Gravity gravity_in_cuvslam;
-
-  if (CUVSLAM_SUCCESS != CUVSLAM_GetLastGravity(cuvslam_handle, &gravity_in_cuvslam)) {
+  if (node.tracking_mode_ != static_cast<int>(TrackingMode::VIO)) {
+    return;
+  }
+  auto maybe_gravity = cuvslam_odometry->GetLastGravity();
+  if (!maybe_gravity) {
     // Don't publish anything if cuvslam hasn't calculated gravity yet. After the start
     // or loss of visual tracking, cuvslam needs some time to align optical and imu sensors.
     // Only after that is it able to calculate the gravity vector.
     return;
   }
 
-  const tf2::Vector3 g_cuvslam(gravity_in_cuvslam.x, gravity_in_cuvslam.y, gravity_in_cuvslam.z);
+  cuvslam::Odometry::Gravity gravity_in_cuvslam = *maybe_gravity;
+  const tf2::Vector3 g_cuvslam(gravity_in_cuvslam[0], gravity_in_cuvslam[1], gravity_in_cuvslam[2]);
   const tf2::Vector3 g_base_link = canonical_pose_cuvslam * g_cuvslam;
 
   MarkerType m;
@@ -696,74 +730,88 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   Stopwatch stopwatch_track;
   // First we add all imu measurements received since the last update.
   for (const auto & imu_msg : imu_msgs) {
-    const auto imu_measurement = TocuVSLAMImuMeasurement(imu_msg);
     const rclcpp::Time timestamp(imu_msg->header.stamp);
     int64_t imu_ts = static_cast<int64_t>(timestamp.nanoseconds());
     RCLCPP_DEBUG(node.get_logger(), "Using imu msg timestamp [%ld]", imu_ts);
-    const CUVSLAM_Status status = CUVSLAM_RegisterImuMeasurement(
-      cuvslam_handle, latest_ts, &imu_measurement);
-    if (status != CUVSLAM_SUCCESS) {
-      RCLCPP_WARN(node.get_logger(), "CUVSLAM has failed to register an IMU measurement");
+    const auto imu_measurement = TocuVSLAMImuMeasurement(imu_msg, imu_ts);
+    try {
+      cuvslam_odometry->RegisterImuMeasurement(0, imu_measurement);
+    } catch (const std::exception & e) {
+      RCLCPP_WARN(node.get_logger(), "Failed to register an IMU measurement: %s",
+              e.what());
     }
   }
 
   // Convert images to cuvslam's format.
-  std::vector<CUVSLAM_Image> cuvslam_images;
+  std::vector<cuvslam::Image> cuvslam_images;
   cuvslam_images.reserve(node.num_cameras_);
+  std::vector<cuvslam::Image> cuvslam_masks;
+  std::vector<cuvslam::Image> cuvslam_depth_images;
+
+  // Calculate the depth image index
+  const int depth_image_idx = node.num_cameras_ + node.num_input_masks_;
 
   // First, extract the masks from the synchronized messages
   std::unordered_map<int, const ImageType *> mask_msgs;
   for (const auto & [idx, image_msg] : idx_and_image_msgs) {
-    if (idx >= static_cast<int>(node.num_cameras_)) {
+    if (idx >= static_cast<int>(node.num_cameras_) && idx < depth_image_idx) {
       mask_msgs[idx - node.num_cameras_] = &image_msg;
     }
   }
 
   for (const auto & [idx, image_msg] : idx_and_image_msgs) {
     if (idx < static_cast<int>(node.num_cameras_)) {
+      // This is a regular RGB/MONO image modes
+      cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts));
       auto mask_it = mask_msgs.find(idx);
-      if (mask_it != mask_msgs.end()) {
-        cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts, mask_it->second));
-      } else {
-        cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts));
+      if (mask_it != mask_msgs.end() && mask_it->second != nullptr) {
+        cuvslam_masks.push_back(TocuVSLAMImage(idx, *mask_it->second, latest_ts));
       }
+    } else if (node.tracking_mode_ == static_cast<int>(TrackingMode::RGBD) &&  // NOLINT
+      idx == depth_image_idx)
+    {
+        // This is the depth image for RGBD mode
+      cuvslam_depth_images.push_back(TocuVSLAMDepthImage(node.depth_camera_id_, image_msg,
+              latest_ts));
     }
   }
 
-  CUVSLAM_PoseEstimate vo_pose_estimate;
-  CUVSLAM_Status vo_status;
+  cuvslam::PoseEstimate vo_pose_estimate;
   {
     NvtxRangeScoped trace(
-      "CUVSLAM_Track", nvidia::isaac_ros::nitros::CLR_MAGENTA);
+      "cuvslam::Odometry::Track", nvidia::isaac_ros::nitros::CLR_MAGENTA);
     StopwatchScope ssw_track(stopwatch_track);
-
-    vo_status = CUVSLAM_TrackGpuMem(
-      cuvslam_handle, cuvslam_images.data(), cuvslam_images.size(), nullptr, nullptr,
-      &vo_pose_estimate);
+    try {
+      vo_pose_estimate = cuvslam_odometry->Track(cuvslam_images, cuvslam_masks,
+              cuvslam_depth_images);
+    } catch (const std::exception & e) {
+      RCLCPP_WARN(node.get_logger(), "Failed to track: %s", e.what());
+      return;
+    }
   }
+  bool vo_success = vo_pose_estimate.world_from_rig != std::nullopt;
 
-  if (vo_status == CUVSLAM_TRACKING_LOST) {
+  if (!vo_success) {
     pose_cache.Reset();
     RCLCPP_WARN(node.get_logger(), "Visual tracking is lost");
-  } else if (vo_status != CUVSLAM_SUCCESS) {
-    RCLCPP_WARN(node.get_logger(), "Unknown Tracker Error %d", vo_status);
-    return;
   }
 
   const rclcpp::Time timestamp_output = node.override_publishing_stamp_ ?
     node.get_clock()->now() : rclcpp::Time(latest_ts);
 
-  if (vo_status == CUVSLAM_SUCCESS) {
-    if (ground_constraint_handle &&
-      !PoseToGround(ground_constraint_handle, vo_pose_estimate.pose))
+  if (vo_success) {
+    if (ground_constraint &&
+      !PoseToGround(*ground_constraint, vo_pose_estimate.world_from_rig.value().pose,
+            node.get_logger()))
     {
-      RCLCPP_WARN(node.get_logger(), "Unknown ground constraint Error %d", vo_status);
+      RCLCPP_WARN(node.get_logger(), "Unknown ground constraint Error");
       return;
     }
 
     // Get VO pose and transform to ROS conventions.
     // odom and map are using same conventions.
-    const tf2::Transform cv_odom_pose_cv_base_link = FromcuVSLAMPose(vo_pose_estimate.pose);
+    const tf2::Transform cv_odom_pose_cv_base_link =
+      FromcuVSLAMPose(vo_pose_estimate.world_from_rig.value().pose);
     const tf2::Transform odom_pose_base_link = ChangeBasis(
       canonical_pose_cuvslam, cv_odom_pose_cv_base_link);
 
@@ -773,13 +821,14 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
     // Publish Smooth pose if enable_rectified_pose_ = false
     tf2::Transform cv_map_pose_cv_base_link = cv_odom_pose_cv_base_link;
     if (node.enable_localization_n_mapping_) {
-      CUVSLAM_Pose slam_pose;
-      const CUVSLAM_Status slam_pose_status = CUVSLAM_GetSlamPose(cuvslam_handle, &slam_pose);
-      if (slam_pose_status != CUVSLAM_SUCCESS) {
-        RCLCPP_WARN(node.get_logger(), "Get Slam Pose Error %d", slam_pose_status);
+      try {
+        cuvslam_odometry->GetState(odometry_state);
+        cuvslam::Pose slam_pose = cuvslam_slam->Track(odometry_state);
+        cv_map_pose_cv_base_link = FromcuVSLAMPose(slam_pose);
+      } catch (const std::exception & e) {
+        RCLCPP_WARN(node.get_logger(), "Failed to get SLAM pose: %s", e.what());
         return;
       }
-      cv_map_pose_cv_base_link = FromcuVSLAMPose(slam_pose);
     }
 
     const tf2::Transform map_pose_base_link =
@@ -845,7 +894,8 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
       auto pose_n_cov = std::make_unique<PoseWithCovarianceStampedType>();
       pose_n_cov->header = header_odom;
       pose_n_cov->pose.pose = vo_pose;
-      auto covariance_transform = FromcuVSLAMCovariance(vo_pose_estimate.covariance);
+      auto covariance_transform =
+        FromcuVSLAMCovariance(vo_pose_estimate.world_from_rig.value().covariance);
       for (size_t i = 0; i < 6 * 6; i++) {
         pose_n_cov->pose.covariance[i] = covariance_transform(i);
       }
@@ -922,7 +972,9 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
     }
 
     // Draw gravity vector
-    if (HasSubscribers(node.vis_gravity_pub_) && node.enable_imu_fusion_) {
+    if (HasSubscribers(node.vis_gravity_pub_) &&
+      node.tracking_mode_ == static_cast<int>(TrackingMode::VIO))
+    {
       PublishGravity(
         timestamp_output,
         node.base_frame_,
@@ -951,7 +1003,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   if (HasSubscribers(node.visual_slam_status_pub_)) {
     VisualSlamStatusType visual_slam_status_msg;
     visual_slam_status_msg.header = header;
-    visual_slam_status_msg.vo_state = vo_status == CUVSLAM_SUCCESS ? 1 : 2;
+    visual_slam_status_msg.vo_state = vo_success ? 1 : 2;
     visual_slam_status_msg.node_callback_execution_time = stopwatch.Seconds();
     visual_slam_status_msg.track_execution_time = track_execution_time;
     visual_slam_status_msg.track_execution_time_max = track_execution_time_max;
@@ -963,7 +1015,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
     DiagnosticArrayType diagnostics;
     diagnostics.header = header;
     DiagnosticStatusType & status = diagnostics.status.emplace_back();
-    if (vo_status == CUVSLAM_SUCCESS) {
+    if (vo_success) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
     } else {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
@@ -973,7 +1025,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
     status.hardware_id = "visual_slam";
     status.values.emplace_back();
     status.values.back().key = "vo_status";
-    status.values.back().value = std::to_string(vo_status);
+    status.values.back().value = vo_success ? "OK" : "Lost";
     status.values.emplace_back();
     status.values.back().key = "track_execution_time";
     status.values.back().value = std::to_string(track_execution_time);
@@ -993,7 +1045,7 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
 }
 
 
-CUVSLAM_Status VisualSlamNode::VisualSlamImpl::SaveMap(const std::string & map_folder_path)
+bool VisualSlamNode::VisualSlamImpl::SaveMap(const std::string & map_folder_path)
 {
   RCLCPP_INFO(node.get_logger(), "Saving map to %s", map_folder_path.c_str());
 
@@ -1001,45 +1053,39 @@ CUVSLAM_Status VisualSlamNode::VisualSlamImpl::SaveMap(const std::string & map_f
     RCLCPP_WARN(
       node.get_logger(),
       "Cannot save map because `enable_localization_n_mapping` is set to false.");
-    return CUVSLAM_SLAM_IS_NOT_INITIALIZED;
+    return false;
   }
 
   // Create context.
-  SaveToSlamDbContext context;
-  auto response_future = context.response_promise.get_future();
+  boost::promise<bool> response_promise;
+  auto response_future = response_promise.get_future();
   if (!response_future.valid()) {
     RCLCPP_ERROR(node.get_logger(), "Future is invalid.");
-    return CUVSLAM_GENERIC_ERROR;
+    return false;
   }
 
-  // Trigger the saving asynchronously.
-  const CUVSLAM_Status call_result = CUVSLAM_SaveToSlamDb(
-    cuvslam_handle,
-    map_folder_path.c_str(),
-    &VisualSlamNode::VisualSlamImpl::SaveToSlamDbResponse,
-    &context);
+  // Trigger the saving asynchronously. Error handling is done in the callback.
+  cuvslam_slam->SaveMap(map_folder_path, [&response_promise](bool success) {
+      response_promise.set_value(success);
+  });
 
-  if (call_result != CUVSLAM_SUCCESS) {
-    RCLCPP_ERROR(node.get_logger(), "CUVSLAM_SaveToSlamDb Error %d", call_result);
-    return call_result;
+  // Wait for the save operation to complete, so that response_promise is not destroyed
+  // before the callback is called.
+  const bool success = response_future.get();
+  if (!success) {
+    RCLCPP_ERROR(node.get_logger(), "Failed to save map");
+    return false;
   }
 
-  // The save operation will complete during normal tracking operations
-  const SaveToSlamDbContext::Response response = response_future.get();
-  if (response.status != CUVSLAM_SUCCESS) {
-    RCLCPP_ERROR(node.get_logger(), "Failed to save map. Error %d", response.status);
-    return response.status;
-  }
-
-  RCLCPP_INFO(node.get_logger(), "Finished saving map with status %d.", response.status);
-  return response.status;
+  RCLCPP_INFO(node.get_logger(), "Finished saving map");
+  return true;
 }
 
 
 boost::future<VisualSlamNode::VisualSlamImpl::LocalizeInExistDbContext::Response> VisualSlamNode::
 VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
   const std::string & map_folder_path,
-  const CUVSLAM_Pose & pose_hint)
+  const cuvslam::Pose & pose_hint)
 {
   localize_in_exist_db_context = LocalizeInExistDbContext();
   auto response_future = localize_in_exist_db_context.response_promise.get_future();
@@ -1048,8 +1094,8 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
     RCLCPP_ERROR(
       node.get_logger(),
       "Cannot localize in map because `enable_localization_n_mapping` is set to false.");
-    LocalizeInExistDbResponse(&localize_in_exist_db_context, CUVSLAM_SLAM_IS_NOT_INITIALIZED,
-            nullptr);
+    localize_in_exist_db_context.response_promise.set_value(boost::outcome_v2::failure<std::string>(
+            "Cannot localize in map because `enable_localization_n_mapping` is set to false."));
     return response_future;
   }
 
@@ -1057,7 +1103,8 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
     RCLCPP_ERROR(
       node.get_logger(),
       "Map folder '%s' does not exist.", map_folder_path.c_str());
-    LocalizeInExistDbResponse(&localize_in_exist_db_context, CUVSLAM_GENERIC_ERROR, nullptr);
+    localize_in_exist_db_context.response_promise.set_value(boost::outcome_v2::failure<std::string>(
+            "Map folder '" + map_folder_path + "' does not exist."));
     return response_future;
   }
 
@@ -1074,7 +1121,8 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
     RCLCPP_ERROR(
       node.get_logger(),
       "Map folder '%s' does not contain .mdb database files.", map_folder_path.c_str());
-    LocalizeInExistDbResponse(&localize_in_exist_db_context, CUVSLAM_GENERIC_ERROR, nullptr);
+    localize_in_exist_db_context.response_promise.set_value(boost::outcome_v2::failure<std::string>(
+            "Map folder '" + map_folder_path + "' does not contain .mdb database files."));
     return response_future;
   }
 
@@ -1085,25 +1133,27 @@ VisualSlamImpl::CuvslamInternalLocalizeInMapAsync(
 
   // For async localization, we don't need to provide images immediately
   // The localization will use images from normal tracking operations
-  std::vector<CUVSLAM_Image> empty_images;
+  std::vector<cuvslam::Image> empty_images;
 
-  // Store the pose hint in the context to prevent dangling pointer
-  localize_in_exist_db_context.pose_storage = pose_hint;
+  cuvslam::Slam::LocalizationSettings localization_settings;
+  localization_settings.horizontal_search_radius = node.localizer_horizontal_radius_;
+  localization_settings.vertical_search_radius = node.localizer_vertical_radius_;
+  localization_settings.horizontal_step = node.localizer_horizontal_step_;
+  localization_settings.vertical_step = node.localizer_vertical_step_;
+  localization_settings.angular_step_rads = node.localizer_angular_step_;
+  localization_settings.enable_reading_internals = node.enable_slam_visualization_;
 
-  const CUVSLAM_Status call_result = CUVSLAM_LocalizeInExistDb(
-    cuvslam_handle,
-    map_folder_path.c_str(),
-    &localize_in_exist_db_context.pose_storage,  // Use stored pose instead of stack variable
-    nullptr,  // No images needed for async mode
-    0,        // No images
-    &VisualSlamNode::VisualSlamImpl::LocalizeInExistDbResponse,
-    &localize_in_exist_db_context);
-
-  if (call_result != CUVSLAM_SUCCESS) {
-    RCLCPP_ERROR(node.get_logger(), "CUVSLAM_LocalizeInExistDb Error %d", call_result);
-    // NOTE: Even if CUVSLAM_LocalizeInExistDb fails, we still expect it to call the callback. We
-    // rely on the callback to set the value of the response_promise.
-  }
+  // NOTE: Even if LocalizeInMap fails, we still expect it to call the callback.
+  // We rely on the callback to set the value of the response_promise.
+  cuvslam_slam->LocalizeInMap(map_folder_path, pose_hint, empty_images, localization_settings,
+    [this](const cuvslam::Result<cuvslam::Pose> & result) {
+      LocalizeInExistDbContext::Response response{boost::outcome_v2::failure(std::string(
+              result.error_message))};
+      if (result.data.has_value()) {
+        response = boost::outcome_v2::success<cuvslam::Pose>(result.data.value());
+      }
+      localize_in_exist_db_context.response_promise.set_value(response);
+  });
 
   // The async localization callback will be triggered during normal tracking operations
   // when CUVSLAM_Track is called with real images
@@ -1129,22 +1179,23 @@ boost::future<std::optional<PoseType>> VisualSlamNode::VisualSlamImpl::LocalizeI
   const tf2::Transform map_pose_frame_id = GetLatestTransform(node.map_frame_, frame_id);
   const tf2::Transform map_pose_base = map_pose_frame_id * frame_id_pose_base;
   const tf2::Transform cv_map_pose_cv_base = ChangeBasis(cuvslam_pose_canonical, map_pose_base);
-  const CUVSLAM_Pose pose_hint_cv = TocuVSLAMPose(cv_map_pose_cv_base);
+  const cuvslam::Pose pose_hint_cv = TocuVSLAMPose(cv_map_pose_cv_base);
 
   auto extract_pose_in_ros_conventions =
     [&](boost::future<LocalizeInExistDbContext::Response> response_future)
     -> std::optional<PoseType>
     {
       const auto response = response_future.get();
-      if (response.status != CUVSLAM_SUCCESS) {
-        RCLCPP_ERROR(node.get_logger(), "Failed to localize in map. Error %d", response.status);
+      if (!response.has_value()) {
+        RCLCPP_ERROR(node.get_logger(), "Failed to localize in map. Error %s",
+              response.error().c_str());
         localizer_helper.SetResult(false, tf2::Transform());
         localized_in_exist_map_ = false;
         return std::nullopt;
       }
 
       // Convert the pose back from cuvslam coordinates to ROS coordinates.
-      const tf2::Transform cv_map_pose_cv_base_link = FromcuVSLAMPose(response.pose_in_db);
+      const tf2::Transform cv_map_pose_cv_base_link = FromcuVSLAMPose(response.value());
       const tf2::Transform map_pose_base_link = ChangeBasis(
         canonical_pose_cuvslam,
         cv_map_pose_cv_base_link);
@@ -1193,29 +1244,6 @@ void VisualSlamNode::VisualSlamImpl::CheckLocalizationStatus()
       localization_future_.reset();
     }
   }
-}
-
-void VisualSlamNode::VisualSlamImpl::SaveToSlamDbResponse(
-  void * anonymous_context,
-  CUVSLAM_Status status)
-{
-  SaveToSlamDbContext * context = static_cast<SaveToSlamDbContext *>(anonymous_context);
-  SaveToSlamDbContext::Response response;
-  response.status = status;
-  context->response_promise.set_value(response);
-}
-
-// Asynchronous response for CUVSLAM_LocalizeInExistDb()
-void VisualSlamNode::VisualSlamImpl::LocalizeInExistDbResponse(
-  void * anonymous_context, CUVSLAM_Status status, const struct CUVSLAM_Pose * pose_in_db)
-{
-  LocalizeInExistDbContext * context = static_cast<LocalizeInExistDbContext *>(anonymous_context);
-  LocalizeInExistDbContext::Response response;
-  response.status = status;
-  if (status == CUVSLAM_SUCCESS) {
-    response.pose_in_db = *pose_in_db;
-  }
-  context->response_promise.set_value(response);
 }
 
 }  // namespace visual_slam

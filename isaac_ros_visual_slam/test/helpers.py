@@ -67,7 +67,7 @@ def run_cuvslam_from_bag(namespace: str,
         'enable_image_denoising': False,
         'rectified_images': False,
         'enable_localization_n_mapping': True,
-        'enable_imu_fusion': True,
+        'tracking_mode': 1,  # VIO mode (IMU fusion)
         'map_frame': 'map',
         'odom_frame': 'odom',
         'base_frame': 'base_link',
@@ -146,6 +146,82 @@ def wait_for_one_message(node: rclpy.node.Node, message_type: Any, topic: str,
 
     node.destroy_subscription(subscription)
     return received_messages[0] if received_messages else None
+
+
+def run_cuvslam_rgbd_from_bag(namespace: str,
+                              bag_path: pathlib.Path,
+                              vslam_override_parameters: dict | None = None) -> list[lut.Action]:
+    """
+    Run visual SLAM with RGBD camera configuration from a rosbag.
+
+    This configuration matches the isaac_ros_visual_slam_realsense_rgbd.launch.py setup.
+    """
+    vslam_parameters = {
+        'tracking_mode': 2,  # RGBD mode
+        'depth_scale_factor': 1000.0,
+        'rectified_images': False,
+        'image_jitter_threshold_ms': 30.00,
+        'sync_matching_threshold_ms': 10.0,
+        'base_frame': 'camera_link',
+        'enable_slam_visualization': True,
+        'enable_landmarks_view': True,
+        'enable_observations_view': True,
+        'enable_ground_constraint_in_odometry': False,
+        'enable_ground_constraint_in_slam': False,
+        'enable_localization_n_mapping': True,
+        'min_num_images': 1,
+        'num_cameras': 1,
+        'depth_camera_id': 0,
+        'camera_optical_frames': ['camera_color_optical_frame'],
+    }
+
+    if vslam_override_parameters:
+        vslam_parameters = vslam_parameters | vslam_override_parameters
+
+    remappings = [
+        ('visual_slam/image_0', 'camera/color/image_raw'),
+        ('visual_slam/camera_info_0', 'camera/color/camera_info'),
+        ('visual_slam/depth_0', 'camera/aligned_depth_to_color/image_raw'),
+    ]
+
+    visual_slam_node = lut.ComposableNode(
+        name='visual_slam_node',
+        package='isaac_ros_visual_slam',
+        plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
+        namespace=namespace,
+        parameters=[vslam_parameters],
+        remappings=remappings,
+    )
+
+    container = lut.ComposableNodeContainer(
+        name='visual_slam_container',
+        namespace='',
+        package='rclcpp_components',
+        executable='component_container',
+        composable_node_descriptions=[visual_slam_node],
+        output='screen',
+    )
+
+    # Remap rosbag topics to match expected namespace
+    cmd = ['ros2', 'bag', 'play', str(bag_path), '--remap']
+    cmd.extend([
+        '/camera/color/image_raw:=' + namespace + '/camera/color/image_raw',
+        '/camera/color/camera_info:=' + namespace + '/camera/color/camera_info',
+        ('/camera/aligned_depth_to_color/image_raw:=' + namespace +
+         '/camera/aligned_depth_to_color/image_raw'),
+    ])
+    rosbag_play = lut.ExecuteProcess(cmd=cmd, output='screen', on_exit=lut.Shutdown())
+
+    ready_to_test = lut.TimerAction(
+        period=2.0,
+        actions=[launch_testing.actions.ReadyToTest()],
+    )
+
+    return lut.LaunchDescription([
+        container,
+        rosbag_play,
+        ready_to_test,
+    ])
 
 
 def wait_for_odometry_message(node: rclpy.node.Node,

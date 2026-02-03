@@ -19,11 +19,12 @@
 #define ISAAC_ROS_VISUAL_SLAM__IMPL__VIZ_HELPER_HPP_
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 
-#include "cuvslam.h"  // NOLINT - include .h without directory
+#include "cuvslam/cuvslam2.h"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Transform.h"
@@ -43,9 +44,10 @@ public:
   virtual ~VisHelper() {}
 
   void Init(
-    CUVSLAM_TrackerHandle cuvslam_handle,
+    std::shared_ptr<cuvslam::Slam> & cuvslam_slam,
     const tf2::Transform & canonical_pose_cuvslam,
-    const std::string & frame_id
+    const std::string & frame_id,
+    const rclcpp::Logger & logger
   );
 
   void Exit();
@@ -54,13 +56,14 @@ protected:
   virtual void Reset() = 0;
 
 protected:
-  CUVSLAM_TrackerHandle cuvslam_handle_ = nullptr;
+  std::shared_ptr<cuvslam::Slam> cuvslam_slam_;
   tf2::Transform canonical_pose_cuvslam_;
   std::string frame_id_;
 
   std::thread thread_;
   std::mutex mutex_;
   std::condition_variable cond_var_;
+  rclcpp::Logger logger_;
 };
 
 }  // namespace visual_slam

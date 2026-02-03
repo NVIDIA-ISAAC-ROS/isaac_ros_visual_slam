@@ -20,7 +20,7 @@
 
 #include <string>
 
-#include "cuvslam.h" // NOLINT - include .h without directory
+#include "cuvslam/cuvslam2.h"
 #include "cv_bridge/cv_bridge.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "tf2/LinearMath/Transform.h"
@@ -34,60 +34,46 @@ namespace visual_slam
 {
 
 // Transformation converting from
-// Canonical ROS Frame (x-forward, y-left, z-up) to
-// cuVSLAM Frame       (x-right, y-up, z-backward)
+// Canonical ROS Frame    (x-forward, y-left, z-up) to
+// cuVSLAM (OpenCV) Frame (x-right, y-down, z-forward)
 // ROS    ->  cuVSLAM
-//  x     ->    -z
+//  x     ->     z
 //  y     ->    -x
-//  z     ->     y
+//  z     ->    -y
 const tf2::Transform cuvslam_pose_canonical(tf2::Matrix3x3(
     0, -1, 0,
-    0, 0, 1,
-    -1, 0, 0
+    0, 0, -1,
+    1, 0, 0
 ));
 
 // Transformation converting from
-// cuVSLAM Frame       (x-right, y-up, z-backward) to
-// Canonical ROS Frame (x-forward, y-left, z-up)
+// cuVSLAM (OpenCV) Frame (x-right, y-down, z-forward) to
+// Canonical ROS Frame    (x-forward, y-left, z-up)
 const tf2::Transform canonical_pose_cuvslam(cuvslam_pose_canonical.inverse());
-
-// Transformation converting from
-// Optical Frame    (x-right, y-down, z-forward) to
-// cuVSLAM Frame    (x-right, y-up, z-backward)
-// Optical   ->  cuVSLAM
-//    x      ->     x
-//    y      ->    -y
-//    z      ->    -z
-const tf2::Transform cuvslam_pose_optical(tf2::Matrix3x3(
-    1, 0, 0,
-    0, -1, 0,
-    0, 0, -1
-));
-
-// Transformation converting from
-// cuVSLAM Frame    (x-right, y-up, z-backward) to
-// Optical Frame    (x-right, y-down, z-forward)
-const tf2::Transform optical_pose_cuvslam(cuvslam_pose_optical.inverse());
 
 tf2::Transform ChangeBasis(
   const tf2::Transform & target_pose_source, const tf2::Transform & source_pose_source);
 
-CUVSLAM_Pose TocuVSLAMPose(const tf2::Transform & tf_mat);
-tf2::Transform FromcuVSLAMPose(const CUVSLAM_Pose & cuvslam_pose);
+cuvslam::Pose TocuVSLAMPose(const tf2::Transform & tf_mat);
 
-CUVSLAM_ImageEncoding TocuVSLAMImageEncoding(const std::string & image_encoding);
+tf2::Transform FromcuVSLAMPose(const cuvslam::Pose & cuvslam_pose);
 
-CUVSLAM_Image TocuVSLAMImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns,
-  const ImageType * input_mask = nullptr);
+cuvslam::Image::Encoding TocuVSLAMImageEncoding(const std::string & image_encoding);
 
-CUVSLAM_ImuMeasurement TocuVSLAMImuMeasurement(const ImuType::ConstSharedPtr & msg_imu);
+cuvslam::Image TocuVSLAMImage(
+  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns);
 
-void FillIntrinsics(const CameraInfoType::ConstSharedPtr & msg, CUVSLAM_Camera & camera);
+cuvslam::Image TocuVSLAMDepthImage(
+  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns);
 
-void FillExtrinsics(const tf2::Transform & base_pose_camera_optical, CUVSLAM_Camera & camera);
+cuvslam::ImuMeasurement TocuVSLAMImuMeasurement(
+  const ImuType::ConstSharedPtr & msg_imu, const int64_t & acqtime_ns);
 
-Eigen::Matrix<float, 6, 6> FromcuVSLAMCovariance(float covariance[36]);
+void FillIntrinsics(const CameraInfoType::ConstSharedPtr & msg, cuvslam::Camera & camera);
+
+void FillExtrinsics(const tf2::Transform & base_pose_camera_optical, cuvslam::Camera & camera);
+
+Eigen::Matrix<float, 6, 6> FromcuVSLAMCovariance(const cuvslam::PoseCovariance & covariance);
 
 }  // namespace visual_slam
 }  // namespace isaac_ros

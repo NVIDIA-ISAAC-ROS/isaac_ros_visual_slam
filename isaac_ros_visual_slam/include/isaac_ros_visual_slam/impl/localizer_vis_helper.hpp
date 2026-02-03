@@ -18,6 +18,7 @@
 #ifndef ISAAC_ROS_VISUAL_SLAM__IMPL__LOCALIZER_VIS_HELPER_HPP_
 #define ISAAC_ROS_VISUAL_SLAM__IMPL__LOCALIZER_VIS_HELPER_HPP_
 
+#include <memory>
 #include <string>
 
 #include "isaac_ros_visual_slam/impl/types.hpp"
@@ -42,21 +43,23 @@ public:
 
   void Init(
     rclcpp::Publisher<MarkerArrayType>::SharedPtr publisher_localizer_probes,
-    CUVSLAM_TrackerHandle cuvslam_handle,
+    std::shared_ptr<cuvslam::Slam> & cuvslam_slam,
     const tf2::Transform & canonical_pose_cuvslam,
-    const std::string & frame_id);
+    const std::string & frame_id,
+    const rclcpp::Logger & logger
+  );
 
   void Reset() override;
 
   void Run();
 
-  void SetResult(bool succesed, const tf2::Transform & pose);
+  void SetResult(bool succeeded, const tf2::Transform & pose);
 
 protected:
   uint32_t max_items_count_ = 1024;
   uint32_t period_ms_ = 500;
 
-  uint64_t last_timestamp_ns_ = 0;
+  int64_t last_timestamp_ns_ = 0;
   uint64_t last_num_probes_ = 0;
   bool reset_required_ = false;
 

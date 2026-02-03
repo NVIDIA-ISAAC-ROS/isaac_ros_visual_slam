@@ -1,0 +1,39 @@
+<launch>
+  <arg name="port"                      default="8765" />
+  <arg name="address"                   default="0.0.0.0" />
+  <arg name="tls"                       default="false" />
+  <arg name="certfile"                  default="" />
+  <arg name="keyfile"                   default="" />
+  <arg name="topic_whitelist"           default="['.*']" />
+  <arg name="param_whitelist"           default="['.*']" />
+  <arg name="service_whitelist"         default="['.*']" />
+  <arg name="client_topic_whitelist"    default="['.*']" />
+  <arg name="min_qos_depth"             default="1" />
+  <arg name="max_qos_depth"             default="25" />
+  <arg name="num_threads"               default="0" />
+  <arg name="send_buffer_limit"         default="120000000" />
+  <arg name="use_sim_time"              default="false" />
+  <arg name="capabilities"              default="[clientPublish,parameters,parametersSubscribe,services,connectionGraph,assets]" />
+  <arg name="include_hidden"            default="false" />
+  <arg name="asset_uri_allowlist"       default="['^package://(?:\\w+/)*\\w+\\.(?:dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|png|stl|tif|tiff|urdf|webp|xacro)$']" />  <!-- Needs double-escape -->
+
+  <node pkg="foxglove_bridge" exec="foxglove_bridge">
+    <param name="port"                    value="$(var port)" />
+    <param name="address"                 value="$(var address)" />
+    <param name="tls"                     value="$(var tls)" />
+    <param name="certfile"                value="$(var certfile)" />
+    <param name="keyfile"                 value="$(var keyfile)" />
+    <param name="topic_whitelist"         value="$(var topic_whitelist)" />
+    <param name="service_whitelist"       value="$(var service_whitelist)" />
+    <param name="param_whitelist"         value="$(var param_whitelist)" />
+    <param name="client_topic_whitelist"  value="$(var client_topic_whitelist)" />
+    <param name="min_qos_depth"           value="$(var min_qos_depth)" />
+    <param name="max_qos_depth"           value="$(var max_qos_depth)" />
+    <param name="num_threads"             value="$(var num_threads)" />
+    <param name="send_buffer_limit"       value="$(var send_buffer_limit)" />
+    <param name="use_sim_time"            value="$(var use_sim_time)" />
+    <param name="capabilities"            value="$(var capabilities)" />
+    <param name="include_hidden"          value="$(var include_hidden)" />
+    <param name="asset_uri_allowlist"     value="$(var asset_uri_allowlist)" />
+  </node>
+</launch>

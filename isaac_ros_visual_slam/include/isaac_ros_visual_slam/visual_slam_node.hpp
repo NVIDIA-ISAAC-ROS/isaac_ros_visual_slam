@@ -46,6 +46,30 @@ struct IMUParams
   double calibration_frequency;
 };
 
+/// Tracking mode enumeration
+/// Defines the type of tracking algorithm used by the visual SLAM system
+enum class TrackingMode : int
+{
+  MULTICAMERA = 0,  ///< Default multicamera stereo tracking
+  VIO = 1,          ///< Visual-Inertial Odometry (IMU fusion required)
+  RGBD = 2          ///< RGBD depth-based tracking
+};
+
+/// Convert TrackingMode enum to string representation
+inline const char * TrackingModeToString(int mode)
+{
+  switch (mode) {
+    case static_cast<int>(TrackingMode::MULTICAMERA):
+      return "Multicamera";
+    case static_cast<int>(TrackingMode::VIO):
+      return "VIO (IMU fusion)";
+    case static_cast<int>(TrackingMode::RGBD):
+      return "RGBD";
+    default:
+      return "Unknown";
+  }
+}
+
 class VisualSlamNode : public rclcpp::Node
 {
 public:
@@ -104,14 +128,25 @@ private:
   // If it is false, it is only Visual Odometry and no map will get produced.
   const bool enable_localization_n_mapping_;
 
-  // Enable IMU fusion mode
-  const bool enable_imu_fusion_;
+  // Tracking mode: determines the type of odometry algorithm used.
+  // Stored as int for ROS 2 parameter compatibility, but should be compared
+  // against TrackingMode enum values: MULTICAMERA (0), VIO (1), or RGBD (2).
+  const int tracking_mode_;
 
   // Enable IMU debug mode
   const bool enable_debug_imu_mode_;
 
   // Data structure to store imu noise params
   const IMUParams imu_params_;
+
+  // Depth scale factor to convert raw depth values to meters
+  const float depth_scale_factor_;
+
+  // Camera index that the depth image is aligned with
+  const int32_t depth_camera_id_;
+
+  // Enable stereo tracking between depth-aligned camera and other cameras
+  const bool depth_enable_stereo_tracking_;
 
   // Minimum value of acceptable jitter (delta between current and previous timestamps)
   // Ideally it should be equal to (1 / fps_value). cuVSLAM library will print out warning messages
@@ -231,6 +266,7 @@ private:
   // deallocating.
   std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> image_subs_;
   std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> segmentation_masks_subs_;
+  std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> depth_image_subs_;
   const std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> camera_info_subs_;
   const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
   const rclcpp::Subscription<PoseWithCovarianceStampedType>::SharedPtr initial_pose_sub_;
