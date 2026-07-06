@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include <thread>
 
 #include "isaac_ros_common/qos.hpp"
-#include "isaac_ros_nitros/types/type_utility.hpp"
 #include "isaac_ros_visual_slam/visual_slam_node.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "isaac_ros_visual_slam/impl/visual_slam_impl.hpp"
@@ -125,61 +124,57 @@ enable_request_hint_(declare_parameter<bool>("enable_request_hint", true)),
 localize_in_map_callback_group_(this->create_callback_group(rclcpp::CallbackGroupType::
   MutuallyExclusive)),
 // Subscribers:
-image_subs_(std::make_unique<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>>(
-    [this]() {
-      std::vector<std::shared_ptr<NitrosImageViewSubscriber>> subs;
-      subs.reserve(num_cameras_);
-      for (uint i = 0; i < num_cameras_; ++i) {
-        subs.push_back(
-          std::make_shared<NitrosImageViewSubscriber>(
-            this,
-            "visual_slam/image_" + std::to_string(i),
-            nvidia::isaac_ros::nitros::nitros_image_rgb8_t::supported_type_name,
-            std::bind(&VisualSlamNode::CallbackImage, this, i, std::placeholders::_1),
-            nvidia::isaac_ros::nitros::NitrosDiagnosticsConfig(), image_qos_));
-      }
-      return subs;
-      }())),
-segmentation_masks_subs_(
-    std::make_unique<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>>(
-    [this]() {
-      std::vector<std::shared_ptr<NitrosImageViewSubscriber>> subs;
-      subs.reserve(num_input_masks_);
-      if (num_input_masks_ <= 0) {
-        return subs;
-      }
-      for (uint i = 0; i < num_cameras_; ++i) {
-        subs.push_back(
-          std::make_shared<NitrosImageViewSubscriber>(
-            this,
-            "visual_slam/seg_mask_" + std::to_string(i),
-            nvidia::isaac_ros::nitros::nitros_image_mono8_t::supported_type_name,
-            std::bind(
-              &VisualSlamNode::CallbackImage, this, i + num_cameras_,
-              std::placeholders::_1),
-            nvidia::isaac_ros::nitros::NitrosDiagnosticsConfig(), image_qos_));
-      }
-      return subs;
-      }())),
-depth_image_subs_(
-    std::make_unique<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>>(
-    [this]() {
-      std::vector<std::shared_ptr<NitrosImageViewSubscriber>> subs;
-      if (tracking_mode_ != static_cast<int>(TrackingMode::RGBD)) {
-        return subs;
-      }
-      subs.reserve(1);
+image_subs_(
+  [this]() {
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+    std::vector<rclcpp::Subscription<nvidia::isaac_ros::nitros::NitrosImage>::SharedPtr> subs;
+    subs.reserve(num_cameras_);
+    for (uint i = 0; i < num_cameras_; ++i) {
       subs.push_back(
-        std::make_shared<NitrosImageViewSubscriber>(
-          this,
-          "visual_slam/depth_0",
-          nvidia::isaac_ros::nitros::nitros_image_mono16_t::supported_type_name,
-          std::bind(
-            &VisualSlamNode::CallbackImage, this, num_cameras_ + num_input_masks_,
-            std::placeholders::_1),
-          nvidia::isaac_ros::nitros::NitrosDiagnosticsConfig(), image_qos_));
+        create_subscription<nvidia::isaac_ros::nitros::NitrosImage>(
+          "visual_slam/image_" + std::to_string(i), image_qos_,
+          [this, i](const ImageType & msg) {return CallbackImage(i, msg);},
+          sub_options));
+    }
+    return subs;
+  }()),
+segmentation_masks_subs_(
+  [this]() {
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+    std::vector<rclcpp::Subscription<nvidia::isaac_ros::nitros::NitrosImage>::SharedPtr> subs;
+    if (num_input_masks_ <= 0) {
       return subs;
-      }())),
+    }
+    subs.reserve(num_cameras_);
+    for (uint i = 0; i < num_cameras_; ++i) {
+      const uint cb_index = i + num_cameras_;
+      subs.push_back(
+        create_subscription<nvidia::isaac_ros::nitros::NitrosImage>(
+          "visual_slam/seg_mask_" + std::to_string(i), image_qos_,
+          [this, cb_index](const ImageType & msg) {return CallbackImage(cb_index, msg);},
+          sub_options));
+    }
+    return subs;
+  }()),
+depth_image_subs_(
+  [this]() {
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+    std::vector<rclcpp::Subscription<nvidia::isaac_ros::nitros::NitrosImage>::SharedPtr> subs;
+    if (tracking_mode_ != static_cast<int>(TrackingMode::RGBD)) {
+      return subs;
+    }
+    const uint cb_index = num_cameras_ + num_input_masks_;
+    subs.reserve(1);
+    subs.push_back(
+      create_subscription<nvidia::isaac_ros::nitros::NitrosImage>(
+        "visual_slam/depth_0", image_qos_,
+        [this, cb_index](const ImageType & msg) {return CallbackImage(cb_index, msg);},
+        sub_options));
+    return subs;
+  }()),
 camera_info_subs_(
   [this]() {
     std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> subs;
@@ -372,12 +367,6 @@ VisualSlamNode::~VisualSlamNode()
     }
   }
   impl_.reset();
-
-  // Having the destructor destroying NITROS types may fail if the process-wide GXF/NITROS context
-  // has been released elsewhere. This is out of control of this node. To avoid crashes, we refrain
-  // from deleting them and instead relay on the OS for memory cleanup. Note that this will lead to
-  // memory leaks if several classes are instantiated in the same process.
-  (void)image_subs_.release();
 }
 
 void VisualSlamNode::CallbackReset(

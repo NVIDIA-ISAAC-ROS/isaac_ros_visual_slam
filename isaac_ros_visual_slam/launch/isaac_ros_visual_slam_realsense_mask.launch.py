@@ -76,6 +76,7 @@ def generate_launch_description():
             'image_input_topic': '/camera/infra1/image_rect_raw',
             'camera_info_input_topic': '/camera/infra1/camera_info',
             'tensor_output_topic': '/tensor_pub',
+            'tensor_name': 'input_tensor',
             'attach_to_shared_component_container': 'True',
             'component_container_name': container_name,
         }.items(),

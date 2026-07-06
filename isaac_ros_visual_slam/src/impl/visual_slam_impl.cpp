@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -138,6 +138,12 @@ VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & vslam_node)
   track_execution_times(100),
   last_track_ts(-1)
 {
+  const cudaError_t err = cudaStreamCreate(&cuda_stream_);
+  if (err != cudaSuccess) {
+    throw std::runtime_error(
+            std::string("Failed to create CUDA stream: ") + cudaGetErrorString(err));
+  }
+
   cuvslam::SetVerbosity(node.verbosity_);
 
   sequencer.RegisterCallback(
@@ -154,6 +160,10 @@ VisualSlamNode::VisualSlamImpl::VisualSlamImpl(VisualSlamNode & vslam_node)
 VisualSlamNode::VisualSlamImpl::~VisualSlamImpl()
 {
   Exit();
+  if (cuda_stream_) {
+    cudaStreamDestroy(cuda_stream_);
+    cuda_stream_ = nullptr;
+  }
 }
 
 // Flag to check the status of initialization.
@@ -664,14 +674,14 @@ void VisualSlamNode::VisualSlamImpl::CallbackImu(const ImuType::ConstSharedPtr &
   } else {initial_imu_message = msg;}
 }
 
-void VisualSlamNode::VisualSlamImpl::CallbackImage(int index, const ImageType & image_view)
+void VisualSlamNode::VisualSlamImpl::CallbackImage(int index, const ImageType & nitros_image)
 {
   NvtxRangeScoped trace(
     "VisualSlamNode::VisualSlamImpl::CallbackImage", nvidia::isaac_ros::nitros::CLR_YELLOW);
 
   if (IsInitialized()) {
-    const rclcpp::Time timestamp = NitrosTimeStamp::value(image_view.GetMessage());
-    sync.AddMessage(index, timestamp.nanoseconds(), image_view);
+    const rclcpp::Time timestamp = NitrosTimeStamp::value(*nitros_image);
+    sync.AddMessage(index, timestamp.nanoseconds(), nitros_image);
   }
 }
 
@@ -708,13 +718,13 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   // Get the latest timestamp from images. We assume that the vector is never empty.
   const auto max_element = std::max_element(
     idx_and_image_msgs.begin(), idx_and_image_msgs.end(),
-    [](std::pair<int, ImageType> msg1, std::pair<int, ImageType> msg2) {
-      auto ts1 = NitrosTimeStamp::value(msg1.second.GetMessage());
-      auto ts2 = NitrosTimeStamp::value(msg2.second.GetMessage());
+    [](const std::pair<int, ImageType> & msg1, const std::pair<int, ImageType> & msg2) {
+      auto ts1 = NitrosTimeStamp::value(*msg1.second);
+      auto ts2 = NitrosTimeStamp::value(*msg2.second);
       return ts1.nanoseconds() < ts2.nanoseconds();
     });
 
-  const int64_t latest_ts = NitrosTimeStamp::value(max_element->second.GetMessage()).nanoseconds();
+  const int64_t latest_ts = NitrosTimeStamp::value(*max_element->second).nanoseconds();
 
   RCLCPP_DEBUG(node.get_logger(), "Using image msg timestamp [%ld]", latest_ts);
 
@@ -747,6 +757,11 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   cuvslam_images.reserve(node.num_cameras_);
   std::vector<cuvslam::Image> cuvslam_masks;
   std::vector<cuvslam::Image> cuvslam_depth_images;
+  // ReadHandles must outlive the cuvslam::Odometry::Track call so that the
+  // GPU memory referenced by cuvslam_images stays valid and the CUDA event
+  // synchronization between producer and consumer is preserved.
+  std::vector<nvidia::isaac_ros::nitros::ReadHandle> read_handles;
+  read_handles.reserve(idx_and_image_msgs.size());
 
   // Calculate the depth image index
   const int depth_image_idx = node.num_cameras_ + node.num_input_masks_;
@@ -762,17 +777,36 @@ void VisualSlamNode::VisualSlamImpl::UpdatePose(
   for (const auto & [idx, image_msg] : idx_and_image_msgs) {
     if (idx < static_cast<int>(node.num_cameras_)) {
       // This is a regular RGB/MONO image modes
-      cuvslam_images.push_back(TocuVSLAMImage(idx, image_msg, latest_ts));
+      auto image_handle = image_msg->get_read_handle(cuda_stream_);
+      cuvslam_images.push_back(TocuVSLAMImage(idx, *image_msg, image_handle, latest_ts));
+      read_handles.push_back(std::move(image_handle));
       auto mask_it = mask_msgs.find(idx);
       if (mask_it != mask_msgs.end() && mask_it->second != nullptr) {
-        cuvslam_masks.push_back(TocuVSLAMImage(idx, *mask_it->second, latest_ts));
+        const auto & mask_msg = *mask_it->second;
+        auto mask_handle = mask_msg->get_read_handle(cuda_stream_);
+        cuvslam_masks.push_back(TocuVSLAMImage(idx, *mask_msg, mask_handle, latest_ts));
+        read_handles.push_back(std::move(mask_handle));
       }
     } else if (node.tracking_mode_ == static_cast<int>(TrackingMode::RGBD) &&  // NOLINT
       idx == depth_image_idx)
     {
-        // This is the depth image for RGBD mode
-      cuvslam_depth_images.push_back(TocuVSLAMDepthImage(node.depth_camera_id_, image_msg,
-              latest_ts));
+      // This is the depth image for RGBD mode
+      auto depth_handle = image_msg->get_read_handle(cuda_stream_);
+      cuvslam_depth_images.push_back(
+        TocuVSLAMDepthImage(node.depth_camera_id_, *image_msg, depth_handle, latest_ts));
+      read_handles.push_back(std::move(depth_handle));
+    }
+  }
+
+  // Ensure all producer writes have completed before cuvslam consumes the data.
+  // cuvslam may use its own internal stream and synchronous CUDA APIs, so we cannot
+  // rely on the get_read_handle stream-wait alone.
+  if (!read_handles.empty()) {
+    const cudaError_t sync_err = cudaStreamSynchronize(cuda_stream_);
+    if (sync_err != cudaSuccess) {
+      RCLCPP_ERROR(
+        node.get_logger(), "cudaStreamSynchronize failed: %s", cudaGetErrorString(sync_err));
+      return;
     }
   }
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,9 +23,8 @@
 #include "geometry_msgs/msg/pose_array.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
-#include "isaac_ros_managed_nitros/managed_nitros_subscriber.hpp"
 #include "isaac_ros_nitros/types/nitros_type_message_filter_traits.hpp"
-#include "isaac_ros_nitros_image_type/nitros_image_view.hpp"
+#include "isaac_ros_nitros_image_type/nitros_image.hpp"
 #include "isaac_ros_visual_slam_interfaces/msg/visual_slam_status.hpp"
 #include "isaac_ros_visual_slam_interfaces/srv/file_path.hpp"
 #include "isaac_ros_visual_slam_interfaces/srv/get_all_poses.hpp"
@@ -41,14 +40,12 @@
 #include "visualization_msgs/msg/marker_array.hpp"
 
 
-using ImageType = nvidia::isaac_ros::nitros::NitrosImageView;
+using ImageType = nvidia::isaac_ros::nitros::NitrosImage::ConstSharedPtr;
 using CameraInfoType = sensor_msgs::msg::CameraInfo;
 using ImuType = sensor_msgs::msg::Imu;
 using PointCloud2Type = sensor_msgs::msg::PointCloud2;
-using NitrosImageViewSubscriber =
-  nvidia::isaac_ros::nitros::ManagedNitrosSubscriber<ImageType>;
 using NitrosTimeStamp =
-  message_filters::message_traits::TimeStamp<ImageType::BaseType>;
+  message_filters::message_traits::TimeStamp<nvidia::isaac_ros::nitros::NitrosImage>;
 using PoseType = geometry_msgs::msg::Pose;
 using PoseStampedType = geometry_msgs::msg::PoseStamped;
 using PoseWithCovarianceStampedType = geometry_msgs::msg::PoseWithCovarianceStamped;
