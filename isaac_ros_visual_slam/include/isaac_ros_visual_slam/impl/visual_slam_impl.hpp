@@ -1,4 +1,5 @@
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +17,8 @@
 
 #ifndef ISAAC_ROS_VISUAL_SLAM__IMPL__VISUAL_SLAM_IMPL_HPP_
 #define ISAAC_ROS_VISUAL_SLAM__IMPL__VISUAL_SLAM_IMPL_HPP_
+
+#include <cuda_runtime.h>
 
 #include <list>
 #include <map>
@@ -213,6 +216,10 @@ struct VisualSlamNode::VisualSlamImpl
   // Store the localization future to prevent it from being destroyed before callback completes
   std::optional<boost::future<std::optional<PoseType>>> localization_future_;
   mutable std::mutex localization_mutex_;
+
+  // CUDA stream used for NitrosImage ReadHandle synchronization between the producer
+  // (upstream node) and cuVSLAM. Created in the constructor and destroyed in the destructor.
+  cudaStream_t cuda_stream_{};
 };
 
 }  // namespace visual_slam

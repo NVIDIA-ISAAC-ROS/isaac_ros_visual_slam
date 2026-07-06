@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
 
 #include "cuvslam/cuvslam2.h"
 #include "cv_bridge/cv_bridge.hpp"
+#include "isaac_ros_nitros/types/nitros_buffer.hpp"
+#include "isaac_ros_nitros_image_type/nitros_image.hpp"
 #include "isaac_ros_visual_slam/impl/types.hpp"
 #include "tf2/LinearMath/Transform.h"
 #include "Eigen/Eigen"
@@ -61,10 +63,16 @@ tf2::Transform FromcuVSLAMPose(const cuvslam::Pose & cuvslam_pose);
 cuvslam::Image::Encoding TocuVSLAMImageEncoding(const std::string & image_encoding);
 
 cuvslam::Image TocuVSLAMImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns);
+  int32_t camera_index,
+  const nvidia::isaac_ros::nitros::NitrosImage & image,
+  const nvidia::isaac_ros::nitros::ReadHandle & read_handle,
+  const int64_t & acqtime_ns);
 
 cuvslam::Image TocuVSLAMDepthImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns);
+  int32_t camera_index,
+  const nvidia::isaac_ros::nitros::NitrosImage & image,
+  const nvidia::isaac_ros::nitros::ReadHandle & read_handle,
+  const int64_t & acqtime_ns);
 
 cuvslam::ImuMeasurement TocuVSLAMImuMeasurement(
   const ImuType::ConstSharedPtr & msg_imu, const int64_t & acqtime_ns);

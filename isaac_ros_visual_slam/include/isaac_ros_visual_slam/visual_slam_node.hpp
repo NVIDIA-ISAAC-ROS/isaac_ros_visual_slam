@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 #include <atomic>
 
 #include "isaac_ros_visual_slam/impl/types.hpp"
-#include "message_filters/subscriber.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/qos.hpp"
 
@@ -262,11 +261,13 @@ private:
   // Callback group
   const rclcpp::CallbackGroup::SharedPtr localize_in_map_callback_group_;
 
-  // Subscribers. Unique pointer is used for NITROS type to enable more flexibility when
-  // deallocating.
-  std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> image_subs_;
-  std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> segmentation_masks_subs_;
-  std::unique_ptr<std::vector<std::shared_ptr<NitrosImageViewSubscriber>>> depth_image_subs_;
+  // Subscribers
+  const std::vector<rclcpp::Subscription<nvidia::isaac_ros::nitros::NitrosImage>::SharedPtr>
+  image_subs_;
+  const std::vector<rclcpp::Subscription<nvidia::isaac_ros::nitros::NitrosImage>::SharedPtr>
+  segmentation_masks_subs_;
+  const std::vector<rclcpp::Subscription<nvidia::isaac_ros::nitros::NitrosImage>::SharedPtr>
+  depth_image_subs_;
   const std::vector<rclcpp::Subscription<CameraInfoType>::SharedPtr> camera_info_subs_;
   const rclcpp::Subscription<ImuType>::SharedPtr imu_sub_;
   const rclcpp::Subscription<PoseWithCovarianceStampedType>::SharedPtr initial_pose_sub_;

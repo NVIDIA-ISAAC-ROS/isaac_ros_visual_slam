@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -220,39 +220,50 @@ cuvslam::Image::Encoding TocuVSLAMImageEncoding(const std::string & image_encodi
   throw std::invalid_argument("Received unknown image encoding: " + image_encoding);
 }
 
-// Helper function to create cuvslam::Image from NitrosImageView.
+// Helper function to create cuvslam::Image from NitrosImage.
+// The caller must keep the supplied ReadHandle alive until cuvslam has finished
+// using the returned cuvslam::Image so that the GPU memory and CUDA-event
+// synchronization remain valid.
 cuvslam::Image TocuVSLAMImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns)
+  int32_t camera_index,
+  const nvidia::isaac_ros::nitros::NitrosImage & image,
+  const nvidia::isaac_ros::nitros::ReadHandle & read_handle,
+  const int64_t & acqtime_ns)
 {
   cuvslam::Image cuvslam_image;
   cuvslam_image.timestamp_ns = acqtime_ns;
-  cuvslam_image.pixels = image_view.GetGpuData();
-  cuvslam_image.width = image_view.GetWidth();
-  cuvslam_image.height = image_view.GetHeight();
+  cuvslam_image.pixels = read_handle.get_ptr();
+  cuvslam_image.width = image.width;
+  cuvslam_image.height = image.height;
   cuvslam_image.camera_index = camera_index;
-  cuvslam_image.pitch = image_view.GetStride();
-  cuvslam_image.encoding = TocuVSLAMImageEncoding(image_view.GetEncoding());
+  cuvslam_image.pitch = image.step;
+  cuvslam_image.encoding = TocuVSLAMImageEncoding(image.encoding);
   cuvslam_image.data_type = cuvslam::Image::DataType::UINT8;
   cuvslam_image.is_gpu_mem = true;
   return cuvslam_image;
 }
 
-// Helper function to create cuvslam::Image depth image from NitrosImageView.
+// Helper function to create cuvslam::Image depth image from NitrosImage.
+// The caller must keep the supplied ReadHandle alive until cuvslam has finished
+// using the returned cuvslam::Image.
 cuvslam::Image TocuVSLAMDepthImage(
-  int32_t camera_index, const ImageType & image_view, const int64_t & acqtime_ns)
+  int32_t camera_index,
+  const nvidia::isaac_ros::nitros::NitrosImage & image,
+  const nvidia::isaac_ros::nitros::ReadHandle & read_handle,
+  const int64_t & acqtime_ns)
 {
   cuvslam::Image cuvslam_depth_image;
   cuvslam_depth_image.timestamp_ns = acqtime_ns;
-  cuvslam_depth_image.pixels = image_view.GetGpuData();
-  cuvslam_depth_image.width = image_view.GetWidth();
-  cuvslam_depth_image.height = image_view.GetHeight();
+  cuvslam_depth_image.pixels = read_handle.get_ptr();
+  cuvslam_depth_image.width = image.width;
+  cuvslam_depth_image.height = image.height;
   cuvslam_depth_image.camera_index = camera_index;
-  cuvslam_depth_image.pitch = image_view.GetStride();
+  cuvslam_depth_image.pitch = image.step;
   // Depth images are single channel (MONO)
   cuvslam_depth_image.encoding = cuvslam::Image::Encoding::MONO;
 
   // Determine the data type based on the ROS encoding
-  const std::string & encoding = image_view.GetEncoding();
+  const std::string & encoding = image.encoding;
   if (encoding == sensor_msgs::image_encodings::TYPE_16UC1 ||
     encoding == sensor_msgs::image_encodings::MONO16)
   {

@@ -22,7 +22,7 @@ reserved.
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>isaac_ros_visual_slam</name>
-  <version>4.4.0</version>
+  <version>4.5.0</version>
   <description>Visual SLAM Package</description>
   <maintainer email="isaac-ros-maintainers@nvidia.com">Isaac ROS Maintainers</maintainer>
   <license>Apache-2.0</license>
@@ -35,8 +35,6 @@ reserved.
   <depend>diagnostic_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>isaac_common</depend>
-  <depend>isaac_ros_gxf</depend>
-  <depend>isaac_ros_managed_nitros</depend>
   <depend>isaac_ros_nitros</depend>
   <depend>isaac_ros_nitros_image_type</depend>
   <depend>isaac_ros_visual_slam_interfaces</depend>
