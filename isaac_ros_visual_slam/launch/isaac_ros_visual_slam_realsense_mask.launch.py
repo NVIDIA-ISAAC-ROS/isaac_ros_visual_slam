@@ -49,9 +49,9 @@ def generate_launch_description():
             'enable_color': True,
             'enable_depth': False,
             'depth_module.emitter_enabled': 0,
-            'depth_module.infra_profile': '640x360x30',
-            'depth_module.profile': '640x360x30',  # For backwards compatibility
-            'rgb_camera.color_profile': '640x360x30',
+            'depth_module.infra_profile': '640x360x15',
+            'depth_module.profile': '640x360x15',  # For backwards compatibility
+            'rgb_camera.color_profile': '640x360x15',
             'enable_gyro': False,
             'enable_accel': False,
         }],
@@ -121,7 +121,7 @@ def generate_launch_description():
             'enable_image_denoising': False,
             'rectified_images': True,
             'tracking_mode': 0,  # Multicamera mode (default)
-            'image_jitter_threshold_ms': 35.00,
+            'image_jitter_threshold_ms': 70.00,
             'base_frame': 'camera_link',
             'imu_frame': 'camera_gyro_optical_frame',
             'enable_slam_visualization': True,

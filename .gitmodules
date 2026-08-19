@@ -1,0 +1,4 @@
+[submodule "cuvslam"]
+	path = cuvslam
+	url = https://github.com/nvidia-isaac/cuVSLAM.git
+	branch = main
