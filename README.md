@@ -3,7 +3,7 @@
 NVIDIA-accelerated, simultaneous localization and mapping (SLAM) using stereo
 visual inertial odometry (SVIO).
 
-<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.6/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.6/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/" width="800px"/></a></div>
+<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-5.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-5.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/cuvslam_ros_3.gif/" width="800px"/></a></div>
 
 ---
 
@@ -61,7 +61,7 @@ closure. VSLAM uses a statistical approach to loop closure that is more
 compute efficient to provide a real time solution, improving convergence
 in loop closure.
 
-<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.6/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-4.6/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/" width="880px"/></a></div>
+<div align="center"><a class="reference internal image-reference" href="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-5.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/"><img alt="image" src="https://media.githubusercontent.com/media/NVIDIA-ISAAC-ROS/.github/release-5.0/resources/isaac_ros_docs/repositories_and_packages/isaac_ros_visual_slam/vslam_odometry_nav2_diagram.png/" width="880px"/></a></div>
 
 There are multiple methods for estimating odometry as an input to
 navigation. None of these methods are perfect; each has limitations
@@ -99,17 +99,6 @@ In addition to results from standard benchmarks, we test loop closure
 for VSLAM on sequences of over 1000 meters, with coverage for indoor and
 outdoor scenes.
 
-## Performance
-
-> [!Note]
-> Visual SLAM benchmarks are available for specific hardware configurations.
-> Please refer to the [Isaac ROS Visual SLAM](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/index.html) documentation for more details.
-
-> [!Note]
-> This benchmark can only be run on a [Nova Orin](https://developer.nvidia.com/isaac) compatible system.
-
----
-
 ## Documentation
 
 Please visit the [Isaac ROS Documentation](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/index.html) to learn how to use
@@ -119,14 +108,14 @@ this repository.
 
 ## Packages
 
-* [`isaac_ros_visual_slam`](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam/index.html)
-  * [Quickstart](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam/index.html#quickstart)
-  * [Try More Examples](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam/index.html#try-more-examples)
-  * [Coordinate Frames](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam/index.html#coordinate-frames)
-  * [Troubleshooting](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam/index.html#troubleshooting)
-  * [API](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam/index.html#api)
+* [`isaac_ros_cuvslam`](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_cuvslam/index.html)
+  * [Quickstart](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_cuvslam/index.html#quickstart)
+  * [Try More Examples](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_cuvslam/index.html#try-more-examples)
+  * [Coordinate Frames](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_cuvslam/index.html#coordinate-frames)
+  * [Troubleshooting](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_cuvslam/index.html#troubleshooting)
+  * [API](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_cuvslam/index.html#api)
 * [`isaac_ros_visual_slam_interfaces`](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_visual_slam/isaac_ros_visual_slam_interfaces/index.html)
 
 ## Latest
 
-Update 2026-08-18: Now builds cuVSLAM library from source for x86_64 and aarch64
+Update 2026-09-21: Renamed the isaac_ros_visual_slam package to isaac_ros_cuvslam, and fixed the RealSense segmentation mask workflow; isaac_ros_visual_slam_interfaces is unchanged

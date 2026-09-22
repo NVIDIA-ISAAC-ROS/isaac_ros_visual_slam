@@ -1,0 +1,90 @@
+// SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+// Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef ISAAC_ROS_CUVSLAM__IMPL__CUVSLAM_ROS_CONVERSION_HPP_
+#define ISAAC_ROS_CUVSLAM__IMPL__CUVSLAM_ROS_CONVERSION_HPP_
+
+#include <string>
+
+#include "cuda_buffer/cuda_buffer_api.hpp"
+#include "cuvslam/cuvslam2.h"
+#include "cv_bridge/cv_bridge.hpp"
+#include "isaac_ros_cuvslam/impl/types.hpp"
+#include "sensor_msgs/msg/image.hpp"
+#include "tf2/LinearMath/Transform.hpp"
+#include "Eigen/Eigen"
+
+namespace nvidia
+{
+namespace isaac_ros
+{
+namespace visual_slam
+{
+
+// Transformation converting from
+// Canonical ROS Frame    (x-forward, y-left, z-up) to
+// cuVSLAM (OpenCV) Frame (x-right, y-down, z-forward)
+// ROS    ->  cuVSLAM
+//  x     ->     z
+//  y     ->    -x
+//  z     ->    -y
+const tf2::Transform cuvslam_pose_canonical(tf2::Matrix3x3(
+    0, -1, 0,
+    0, 0, -1,
+    1, 0, 0
+));
+
+// Transformation converting from
+// cuVSLAM (OpenCV) Frame (x-right, y-down, z-forward) to
+// Canonical ROS Frame    (x-forward, y-left, z-up)
+const tf2::Transform canonical_pose_cuvslam(cuvslam_pose_canonical.inverse());
+
+tf2::Transform ChangeBasis(
+  const tf2::Transform & target_pose_source, const tf2::Transform & source_pose_source);
+
+cuvslam::Pose TocuVSLAMPose(const tf2::Transform & tf_mat);
+
+tf2::Transform FromcuVSLAMPose(const cuvslam::Pose & cuvslam_pose);
+
+cuvslam::Image::Encoding TocuVSLAMImageEncoding(const std::string & image_encoding);
+
+cuvslam::Image TocuVSLAMImage(
+  int32_t camera_index,
+  const sensor_msgs::msg::Image & image,
+  const cuda_buffer_backend::ReadHandle & read_handle,
+  const int64_t & acqtime_ns);
+
+cuvslam::Image TocuVSLAMDepthImage(
+  int32_t camera_index,
+  const sensor_msgs::msg::Image & image,
+  const cuda_buffer_backend::ReadHandle & read_handle,
+  const int64_t & acqtime_ns);
+
+cuvslam::ImuMeasurement TocuVSLAMImuMeasurement(
+  const ImuType::ConstSharedPtr & msg_imu, const int64_t & acqtime_ns);
+
+void FillIntrinsics(const CameraInfoType::ConstSharedPtr & msg, cuvslam::Camera & camera);
+
+void FillExtrinsics(const tf2::Transform & base_pose_camera_optical, cuvslam::Camera & camera);
+
+Eigen::Matrix<float, 6, 6> FromcuVSLAMCovariance(const cuvslam::PoseCovariance & covariance);
+
+}  // namespace visual_slam
+}  // namespace isaac_ros
+}  // namespace nvidia
+
+#endif  // ISAAC_ROS_CUVSLAM__IMPL__CUVSLAM_ROS_CONVERSION_HPP_
