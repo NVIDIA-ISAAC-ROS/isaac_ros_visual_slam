@@ -183,6 +183,12 @@ if(BUILD_TESTING)
   ament_target_dependencies(${PROJECT_NAME}_test_message_stream_sequencer
     std_msgs
   )
+
+  ament_add_gtest(${PROJECT_NAME}_test_limited_vector test/test_limited_vector.cpp)
+  target_include_directories(${PROJECT_NAME}_test_limited_vector PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
 endif()
 
 

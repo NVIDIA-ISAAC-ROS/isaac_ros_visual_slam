@@ -42,6 +42,9 @@ public:
   void add(const T & value)
   {
     // tracking_vo_path_pub_
+    if (max_size_ == 0) {
+      return;
+    }
     if (data.size() >= max_size_) {
       std::rotate(data.begin(), data.begin() + 1, data.end());
       data.back() = value;
